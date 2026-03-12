@@ -1,0 +1,70 @@
+#clock {
+  position: absolute;
+  inset: 1rem;
+  width: calc(100% - 2rem);
+  height: calc(100% - 2rem);
+}
+
+#clock-text {
+  display: block;
+  width: 100%;
+  text-align: center;
+  margin: 0;
+  padding: 0;
+  font-size: 16px;
+  height: max-content;
+  transition: font-size var(--transition-duration, 0.2s) ease;
+}
+
+#clock-text[data-has-tz] {
+  font-size: 9px;
+}
+
+#clock-text::after {
+  content: var(--tz-label, "");
+  display: block;
+  width: 100%;
+  text-align: center;
+  font-size: 5px;
+  color: color-mix(in srgb, var(--foreground, #DDD) 70%, transparent);
+}
+
+#clock-text:not([data-has-tz])::after {
+  display: none;
+}
+
+#clock,
+.hand,
+#clock-face {
+  stroke: var(--foreground, #DDD);
+  fill: none;
+  stroke-width: 0.125rem;
+  stroke-linecap: round;
+  transform-origin: 50% 40%;
+}
+
+#hour-hand {
+  stroke-width: 4px;
+  animation: sweep calc(60s * 60 * 12) linear infinite;
+}
+
+#minute-hand {
+  stroke-width: 3px;
+  animation: sweep calc(60s * 60) linear infinite;
+}
+
+#second-hand {
+  stroke: red;
+  stroke-width: 2px;
+  animation: sweep 60s linear infinite;
+}
+
+@keyframes sweep {
+  from {
+    transform: rotate(var(--start, 0deg));
+  }
+
+  to {
+    transform: rotate(calc(var(--start, 0deg) + 360deg));
+  }
+}
