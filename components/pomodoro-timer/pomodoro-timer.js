@@ -6,22 +6,7 @@ import {
   clearPulseSyncDelay,
   TickEngine,
 } from '../timer.js';
-
-const template = document.createElement('template');
-const sheet = new CSSStyleSheet();
-const sharedSheet = new CSSStyleSheet();
-
-const templateReady = Promise.all([
-  fetch(new URL('./pomodoro-timer.html', import.meta.url))
-    .then(r => r.text())
-    .then(html => { template.innerHTML = html; }),
-  fetch(new URL('./pomodoro-timer.css', import.meta.url))
-    .then(r => r.text())
-    .then(css => { sheet.replaceSync(css); }),
-  fetch(new URL('../shared.css', import.meta.url))
-    .then(r => r.text())
-    .then(css => { sharedSheet.replaceSync(css); }),
-]);
+import { loadComponentFromFiles } from "../load.js";
 
 const Phase = Object.freeze({
   WORK: 'work',
@@ -104,11 +89,16 @@ class PomodoroTimer extends HTMLElement {
   }
 
   async connectedCallback() {
-    await templateReady;
+    const { template, sheets } = await loadComponentFromFiles(
+      new URL('./pomodoro-timer.html', import.meta.url),
+      new URL('./pomodoro-timer.css', import.meta.url),
+      new URL('../timer.css', import.meta.url),
+      new URL('../shared.css', import.meta.url)
+    );
 
     if (!this.shadowRoot) {
       this.attachShadow({ mode: 'open' });
-      this.shadowRoot.adoptedStyleSheets = [sharedSheet, sheet];
+      this.shadowRoot.adoptedStyleSheets = sheets;
       this.shadowRoot.appendChild(template.content.cloneNode(true));
 
       this.#progressRingEl = this.shadowRoot.getElementById('progress-ring');
@@ -125,7 +115,7 @@ class PomodoroTimer extends HTMLElement {
 
       const removeBtn = this.shadowRoot.getElementById('remove-btn');
       removeBtn.addEventListener('click', () =>
-        removeBtn.dispatchEvent(new CustomEvent('pomodoro-removed', { bubbles: true, composed: true }))
+        removeBtn.dispatchEvent(new CustomEvent('widget-removed', { bubbles: true, composed: true }))
       );
       removeBtn.disabled = false;
 
@@ -149,7 +139,7 @@ class PomodoroTimer extends HTMLElement {
     this.#tickEngine.stop();
   }
 
-  attributeChangedCallback(name, oldVal, newVal) {
+  attributeChangedCallback(_, oldVal, __) {
     if (!this.shadowRoot) return;
     if (oldVal === null) return;
 
@@ -434,7 +424,12 @@ class PomodoroTimer extends HTMLElement {
         this.#phaseLabelEl.textContent = `Work ${this.#currentRound}/${this.#rounds}`;
         break;
       case Phase.SHORT_BREAK:
-        this.#phaseLabelEl.textContent = `Break ${this.#currentRound}/${this.#rounds}`;
+        if (this.#rounds === 2) {
+          // Special case for 2-round mode: only one short break, so no round counter
+          this.#phaseLabelEl.textContent = 'Short break';
+        } else {
+          this.#phaseLabelEl.textContent = `Short break ${this.#currentRound}/${this.#rounds - 1}`;
+        }
         break;
       case Phase.LONG_BREAK:
         this.#phaseLabelEl.textContent = 'Long break';

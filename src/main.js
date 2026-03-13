@@ -9,13 +9,32 @@ import {
 import { loadStorage, saveStorage } from './storage.js';
 import { initDrag } from './drag.js';
 
-
+// Widget set-up
 const list = document.getElementById('clocks-and-timers');
+const widgets = [
+  {
+    tag: 'analog-clock',
+    attributes: ['timezone'],
+  },
+  {
+    tag: 'countdown-timer',
+    attributes: ['duration'],
+  },
+  {
+    tag: 'pomodoro-timer',
+    attributes: ['work', 'short-break', 'long-break', 'rounds'],
+  },
+]
 
 // Audio set-up
 unlockAudio();
 registerAlarmStartEvents(list, ['timer-finished']);
-registerAlarmStopEvents(list, ['timer-started', 'timer-paused', 'timer-removed', 'pomodoro-removed']);
+registerAlarmStopEvents(list, ['timer-started', 'timer-paused', 'widget-removed']);
+
+// Listen for removal event
+list.addEventListener('widget-removed', (e) => {
+  e.target.closest('li')?.remove();
+});
 
 // Initialise from storage
 const restored = loadStorage(list);
@@ -36,41 +55,20 @@ observer.observe(list, {
   childList: true,
   subtree: true,
   attributes: true,
-  attributeFilter: ['duration', 'timezone', 'work', 'short-break', 'long-break', 'rounds'],
+  attributeFilter: widgets.flatMap(w => w.attributes),
 });
 
-// Listen for custom events to remove clocks and timers from the list
-list.addEventListener('clock-removed', (e) => {
-  e.target.closest('li')?.remove();
-});
+for (const { tag } of widgets) {
+  const addBtn = document.getElementById(`add-${tag}`);
+  if (!addBtn) {
+    console.warn(`No add button found for ${tag}, skipping widget initialisation`);
+    continue;
+  }
 
-list.addEventListener('timer-removed', (e) => {
-  e.target.closest('li')?.remove();
-});
-
-list.addEventListener('pomodoro-removed', (e) => {
-  e.target.closest('li')?.remove();
-});
-
-// Set up buttons to add clocks and timers
-const addClockBtn = document.getElementById('add-clock');
-const addTimerBtn = document.getElementById('add-timer');
-const addPomodoroBtn = document.getElementById('add-pomodoro');
-addClockBtn.addEventListener('click', () => {
-  const li = document.createElement('li');
-  li.innerHTML = `<analog-clock></analog-clock>`;
-  list.appendChild(li);
-});
-addTimerBtn.addEventListener('click', () => {
-  const li = document.createElement('li');
-  li.innerHTML = `<countdown-timer duration="300"></countdown-timer>`;
-  list.appendChild(li);
-});
-addPomodoroBtn.addEventListener('click', () => {
-  const li = document.createElement('li');
-  li.innerHTML = `<pomodoro-timer></pomodoro-timer>`;
-  list.appendChild(li);
-});
-addClockBtn.disabled = false;
-addTimerBtn.disabled = false;
-addPomodoroBtn.disabled = false;
+  addBtn.addEventListener('click', () => {
+    const li = document.createElement('li');
+    li.innerHTML = `<${tag}></${tag}>`;
+    list.appendChild(li);
+  });
+  addBtn.disabled = false;
+}

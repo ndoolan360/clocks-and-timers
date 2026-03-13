@@ -1,0 +1,74 @@
+#timer {
+  position: absolute;
+  top: 1rem;
+  left: 1rem;
+  width: calc(100% - 2rem);
+  height: calc(100% - 2rem);
+  display: block;
+  transform: scale(1);
+  filter: brightness(1);
+}
+
+#timer-meta {
+  width: 100%;
+  height: 100%;
+  display: grid;
+  place-content: center;
+}
+
+#timer-text {
+  display: block;
+  width: 100%;
+  text-align: center;
+}
+
+#progress-ring,
+#progress-background {
+  fill: transparent;
+  stroke-width: 20px;
+  stroke-linecap: butt;
+  transform: rotate(-90deg);
+  transform-origin: center center;
+
+  transition-property: stroke, stroke-dashoffset;
+  transition-duration: var(--tick-duration, 1s);
+  transition-timing-function: linear;
+}
+
+#progress-ring {
+  stroke: var(--accent, royalblue);
+  stroke-dasharray: var(--circumference);
+  stroke-dashoffset: calc(var(--circumference) * (1 - var(--progress)));
+}
+
+#progress-background {
+  stroke: color-mix(in srgb, var(--accent, royalblue) 20%, transparent);
+}
+
+:host([data-state="finished"]) #progress-ring {
+  stroke: transparent;
+}
+
+:host([data-state="finished"]) #progress-background {
+  stroke: color-mix(in srgb, var(--red, crimson) 20%, transparent);
+}
+
+:host([data-state="finished"]) #timer {
+  animation: finished-pulse 0.5s ease-in-out infinite;
+  animation-delay: calc(var(--pulse-delay-ms, 0));
+  transform-origin: center;
+}
+
+@keyframes finished-pulse {
+  50% {
+    transform: scale(1.03);
+    filter: brightness(1.2);
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+
+  :host([data-state="finished"]) #timer {
+    animation: none;
+  }
+}

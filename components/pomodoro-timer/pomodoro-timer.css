@@ -1,20 +1,3 @@
-#timer {
-  position: absolute;
-  top: 1rem;
-  left: 1rem;
-  width: calc(100% - 2rem);
-  height: calc(100% - 2rem);
-  display: block;
-  transform: scale(1);
-  filter: brightness(1);
-}
-
-#timer-text {
-  display: block;
-  width: 100%;
-  text-align: center;
-}
-
 #phase-label {
   display: block;
   width: 100%;
@@ -23,48 +6,7 @@
   color: color-mix(in srgb, var(--foreground, #DDD) 70%, transparent);
 }
 
-.timer-meta {
-  width: 100%;
-  height: 100%;
-  display: grid;
-  place-content: center;
-}
-
-/* ---- Progress ring ---- */
-
-#progress-ring,
-#progress-background {
-  fill: transparent;
-  stroke-width: 20px;
-  stroke-linecap: round;
-  transform: rotate(-90deg);
-  transform-origin: center center;
-}
-
-#progress-ring {
-  stroke-dasharray: var(--circumference);
-  stroke-dashoffset: calc(var(--circumference) * (1 - var(--progress)));
-  transition-property: stroke-dashoffset, stroke;
-  transition-duration: var(--tick-duration, 1s), var(--transition-duration, 0.2s);
-  transition-timing-function: linear, ease;
-}
-
-#progress-background {
-  transition-property: stroke;
-  transition-duration: var(--transition-duration, 0.2s);
-  transition-timing-function: ease;
-}
-
-/* ---- Phase colours ---- */
-
-/* Work phase */
-:host([data-phase="work"]) #progress-ring {
-  stroke: var(--accent, royalblue);
-}
-
-:host([data-phase="work"]) #progress-background {
-  stroke: color-mix(in srgb, var(--accent, royalblue) 20%, transparent);
-}
+/* ---- Additional Phase colours ---- */
 
 /* Short break phase */
 :host([data-phase="short-break"]) #progress-ring {
@@ -82,86 +24,4 @@
 
 :host([data-phase="long-break"]) #progress-background {
   stroke: color-mix(in srgb, var(--green, mediumseagreen) 20%, transparent);
-}
-
-/* Hide ring when phase is finished */
-:host([data-state="finished"]) #progress-ring {
-  stroke: transparent;
-}
-
-/* ---- Finished state animation ---- */
-
-:host([data-state="finished"]) #timer {
-  animation: finished-pulse 0.5s ease-in-out infinite;
-  animation-delay: calc(var(--pulse-delay-ms, 0));
-  transform-origin: center;
-}
-
-:host([data-state="finished"][data-phase="work"]) #progress-background {
-  stroke: color-mix(in srgb, var(--red, crimson) 20%, transparent);
-}
-
-:host([data-state="finished"][data-phase="short-break"]) #progress-background {
-  stroke: color-mix(in srgb, var(--blue, lightseagreen) 40%, transparent);
-}
-
-:host([data-state="finished"][data-phase="long-break"]) #progress-background {
-  stroke: color-mix(in srgb, var(--green, mediumseagreen) 40%, transparent);
-}
-
-@keyframes finished-pulse {
-  50% {
-    transform: scale(1.03);
-    filter: brightness(1.2);
-  }
-}
-
-@media (prefers-reduced-motion: reduce) {
-  :host([data-state="finished"]) #timer {
-    animation: none;
-  }
-}
-
-/* ---- Settings popover ---- */
-
-.preset-chips {
-  display: flex;
-  flex-flow: row wrap;
-  gap: 0.25rem;
-}
-
-.preset-chip {
-  min-height: 1.5rem;
-  min-width: unset;
-  padding: 0.125rem 0.5rem;
-  border-radius: 1rem;
-  font-size: 0.6875rem;
-  font-weight: 600;
-  cursor: pointer;
-  color: var(--foreground, #DDD);
-  background-color: color-mix(in srgb, var(--accent, royalblue) 20%, transparent);
-  border: 1px solid var(--accent, royalblue);
-  transition-property: background-color;
-  transition-duration: var(--transition-duration, 0.2s);
-  transition-timing-function: ease;
-}
-
-.preset-chip:hover,
-.preset-chip:focus-visible {
-  background-color: color-mix(in srgb, var(--accent, royalblue) 50%, transparent);
-}
-
-.preset-chip[aria-pressed="true"] {
-  background-color: var(--accent, royalblue);
-  color: #fff;
-}
-
-.custom-fields[hidden] {
-  display: none;
-}
-
-.custom-fields:not([hidden]) {
-  display: flex;
-  flex-flow: column nowrap;
-  gap: 0.625rem;
 }

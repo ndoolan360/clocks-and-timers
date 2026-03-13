@@ -6,22 +6,7 @@ import {
   clearPulseSyncDelay,
   TickEngine,
 } from '../timer.js';
-
-const template = document.createElement('template');
-const sheet = new CSSStyleSheet();
-const sharedSheet = new CSSStyleSheet();
-
-const templateReady = Promise.all([
-  fetch(new URL('./countdown-timer.html', import.meta.url))
-    .then(r => r.text())
-    .then(html => { template.innerHTML = html; }),
-  fetch(new URL('./countdown-timer.css', import.meta.url))
-    .then(r => r.text())
-    .then(css => { sheet.replaceSync(css); }),
-  fetch(new URL('../shared.css', import.meta.url))
-    .then(r => r.text())
-    .then(css => { sharedSheet.replaceSync(css); }),
-]);
+import { loadComponentFromFiles } from "../load.js";
 
 class CountdownTimer extends HTMLElement {
   /** @type {number} Total duration in deci-seconds */
@@ -49,11 +34,15 @@ class CountdownTimer extends HTMLElement {
   }
 
   async connectedCallback() {
-    await templateReady;
+    const { template, sheets } = await loadComponentFromFiles(
+      new URL('./countdown-timer.html', import.meta.url),
+      new URL('../timer.css', import.meta.url),
+      new URL('../shared.css', import.meta.url)
+    );
 
     if (!this.shadowRoot) {
       this.attachShadow({ mode: 'open' });
-      this.shadowRoot.adoptedStyleSheets = [sharedSheet, sheet];
+      this.shadowRoot.adoptedStyleSheets = sheets;
       this.shadowRoot.appendChild(template.content.cloneNode(true));
       this.#progressRingEl = this.shadowRoot.getElementById('progress-ring');
       this.#timeEl = this.shadowRoot.getElementById('timer-text');
@@ -64,7 +53,7 @@ class CountdownTimer extends HTMLElement {
 
       const removeBtn = this.shadowRoot.getElementById("remove-btn");
       removeBtn.addEventListener('click', () =>
-        removeBtn.dispatchEvent(new CustomEvent("timer-removed", { bubbles: true, composed: true }))
+        removeBtn.dispatchEvent(new CustomEvent("widget-removed", { bubbles: true, composed: true }))
       );
       removeBtn.disabled = false;
 
@@ -103,7 +92,7 @@ class CountdownTimer extends HTMLElement {
   #initSettings() {
     const durationInput = this.shadowRoot.getElementById('setting-duration');
     const customChip = this.shadowRoot.getElementById('custom-chip');
-    const customLabel = this.shadowRoot.querySelector('.custom-duration');
+    const customFields = this.shadowRoot.querySelector('.custom-fields');
     const presetChips = this.shadowRoot.querySelectorAll('.preset-chip[data-duration]');
 
     if (durationInput) {
@@ -118,21 +107,21 @@ class CountdownTimer extends HTMLElement {
 
     if (presetChips.length) {
       const currentDuration = this.getAttribute('duration') ?? '300';
-      this.#updateActivePreset(presetChips, customChip, customLabel, currentDuration);
+      this.#updateActivePreset(presetChips, customChip, customFields, currentDuration);
 
       for (const chip of presetChips) {
         chip.addEventListener('click', () => {
           const val = chip.dataset.duration;
           this.setAttribute('duration', val);
           if (durationInput) durationInput.value = val;
-          this.#updateActivePreset(presetChips, customChip, customLabel, val);
+          this.#updateActivePreset(presetChips, customChip, customFields, val);
         });
       }
     }
 
     if (customChip) {
       customChip.addEventListener('click', () => {
-        this.#showCustomDuration(presetChips, customChip, customLabel);
+        this.#showCustomDuration(presetChips, customChip, customFields);
         durationInput?.focus();
       });
     }
@@ -143,10 +132,10 @@ class CountdownTimer extends HTMLElement {
    * the Custom chip if no preset matches.
    * @param {NodeListOf<HTMLButtonElement>} presetChips
    * @param {HTMLButtonElement | null} customChip
-   * @param {HTMLElement | null} customLabel
+   * @param {HTMLElement | null} customFields
    * @param {string} duration  Duration in seconds.
    */
-  #updateActivePreset(presetChips, customChip, customLabel, duration) {
+  #updateActivePreset(presetChips, customChip, customFields, duration) {
     let matched = false;
     for (const chip of presetChips) {
       const match = chip.dataset.duration === duration;
@@ -157,10 +146,10 @@ class CountdownTimer extends HTMLElement {
     if (matched) {
       // A preset matched — hide the custom input.
       if (customChip) customChip.setAttribute('aria-pressed', 'false');
-      if (customLabel) customLabel.hidden = true;
+      if (customFields) customFields.hidden = true;
     } else {
       // No preset matched — show the custom input.
-      this.#showCustomDuration(presetChips, customChip, customLabel);
+      this.#showCustomDuration(presetChips, customChip, customFields);
     }
   }
 
@@ -168,14 +157,14 @@ class CountdownTimer extends HTMLElement {
    * Activate the Custom chip and reveal the duration input.
    * @param {NodeListOf<HTMLButtonElement>} presetChips
    * @param {HTMLButtonElement | null} customChip
-   * @param {HTMLElement | null} customLabel
+   * @param {HTMLElement | null} customFields
    */
-  #showCustomDuration(presetChips, customChip, customLabel) {
+  #showCustomDuration(presetChips, customChip, customFields) {
     for (const chip of presetChips) {
       chip.setAttribute('aria-pressed', 'false');
     }
     if (customChip) customChip.setAttribute('aria-pressed', 'true');
-    if (customLabel) customLabel.hidden = false;
+    if (customFields) customFields.hidden = false;
   }
 
   start() {

@@ -1,26 +1,5 @@
 import { toLocalISO, currentOffset, buildTimezoneSelectOptions } from "./timezones.js";
-
-const template = document.createElement("template");
-const sheet = new CSSStyleSheet();
-const sharedSheet = new CSSStyleSheet();
-
-const templateReady = Promise.all([
-  fetch(new URL("./analog-clock.html", import.meta.url))
-    .then((r) => r.text())
-    .then((html) => {
-      template.innerHTML = html;
-    }),
-  fetch(new URL("./analog-clock.css", import.meta.url))
-    .then((r) => r.text())
-    .then((css) => {
-      sheet.replaceSync(css);
-    }),
-  fetch(new URL("../shared.css", import.meta.url))
-    .then((r) => r.text())
-    .then((css) => {
-      sharedSheet.replaceSync(css);
-    }),
-]);
+import { loadComponentFromFiles } from "../load.js";
 
 class AnalogClock extends HTMLElement {
   /** @type {number | null} */
@@ -37,17 +16,21 @@ class AnalogClock extends HTMLElement {
   }
 
   async connectedCallback() {
-    await templateReady;
+    const { template, sheets } = await loadComponentFromFiles(
+      new URL('./analog-clock.html', import.meta.url),
+      new URL('./analog-clock.css', import.meta.url),
+      new URL('../shared.css', import.meta.url)
+    );
 
     if (!this.shadowRoot) {
       this.attachShadow({ mode: "open" });
-      this.shadowRoot.adoptedStyleSheets = [sharedSheet, sheet];
+      this.shadowRoot.adoptedStyleSheets = sheets;
       this.shadowRoot.appendChild(template.content.cloneNode(true));
       this.#timeEl = this.shadowRoot.getElementById("clock-text");
 
       const removeBtn = this.shadowRoot.getElementById("remove-btn");
       removeBtn.addEventListener('click', () =>
-        removeBtn.dispatchEvent(new CustomEvent("clock-removed", { bubbles: true, composed: true }))
+        removeBtn.dispatchEvent(new CustomEvent("widget-removed", { bubbles: true, composed: true }))
       );
       removeBtn.disabled = false;
 
@@ -64,7 +47,7 @@ class AnalogClock extends HTMLElement {
     this.#intervalId = null;
   }
 
-  attributeChangedCallback(name, oldVal, newVal) {
+  attributeChangedCallback(name, _, __) {
     if (!this.shadowRoot) return;
 
     if (name === "timezone") {

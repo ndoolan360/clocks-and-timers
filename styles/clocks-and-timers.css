@@ -70,9 +70,7 @@
   display: flex;
 }
 
-#clocks-and-timers analog-clock:not(:defined),
-#clocks-and-timers countdown-timer:not(:defined),
-#clocks-and-timers pomodoro-timer:not(:defined) {
+#clocks-and-timers li :not(:defined) {
   visibility: hidden;
 }
 

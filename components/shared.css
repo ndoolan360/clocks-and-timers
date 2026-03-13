@@ -214,7 +214,51 @@
   flex: 1 1 auto;
 }
 
+/* ---- Preset chips styles ---- */
+
+.preset-chips {
+  display: flex;
+  flex-flow: row wrap;
+  gap: 0.25rem;
+}
+
+.preset-chip {
+  min-height: 1.5rem;
+  min-width: unset;
+  padding: 0.125rem 0.5rem;
+  border-radius: 1rem;
+  font-size: 0.6875rem;
+  font-weight: 600;
+  cursor: pointer;
+  color: var(--foreground, #DDD);
+  background-color: color-mix(in srgb, var(--accent, royalblue) 20%, transparent);
+  border: 1px solid var(--accent, royalblue);
+  transition-property: background-color;
+  transition-duration: var(--transition-duration, 0.2s);
+  transition-timing-function: ease;
+}
+
+.preset-chip:hover,
+.preset-chip:focus-visible {
+  background-color: color-mix(in srgb, var(--accent, royalblue) 50%, transparent);
+}
+
+.preset-chip[aria-pressed="true"] {
+  background-color: var(--accent, royalblue);
+  color: #fff;
+}
+
+.custom-fields {
+  display: flex;
+  flex-flow: column nowrap;
+  gap: 0.625rem;
+}
+
 /* ---- Utility classes ---- */
+
+[hidden] {
+  display: none;
+}
 
 .sr-only {
   position: absolute;
