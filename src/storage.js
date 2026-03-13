@@ -1,10 +1,46 @@
+import { WIDGETS } from './main.js';
+
 const STORAGE_KEY = 'clocks-and-timers.items';
 
 /**
- * @typedef {{ tag: string, attributes: Record<string, string> }} WidgetEntry
+ * Load saved widgets from sessionStorage and rebuild the list DOM.
+ * Returns `true` if saved state was restored, `false` if there was
+ * nothing to restore (first visit).
+ * @param {HTMLElement} list  The <ul> container element.
+ * @returns {boolean}
  */
+export const loadStorage = (list) => {
+  try {
+    const raw = sessionStorage.getItem(STORAGE_KEY);
+    if (raw == null) return false;
 
-const SUPPORTED_TAGS = new Set(['analog-clock', 'countdown-timer', 'pomodoro-timer']);
+    const parsed = JSON.parse(raw);
+    if (!Array.isArray(parsed)) return false;
+
+    // Validate each entry before returning.
+    const entries = parsed.filter(
+      (e) =>
+        e && typeof e === 'object' &&
+        typeof e.tag === 'string' &&
+        WIDGETS.some((w) => w.tag === e.tag) &&
+        (!e.attributes || typeof e.attributes === 'object')
+    );
+
+    deserialise(list, entries);
+    return true;
+  } catch {
+    return false;
+  }
+};
+
+export const saveStorage = (list) => {
+  try {
+    const entries = serialise(list);
+    sessionStorage.setItem(STORAGE_KEY, JSON.stringify(entries));
+  } catch {
+    // Storage may be full or unavailable — fail silently.
+  }
+};
 
 /**
  * Serialise the current widget list from the DOM into an array of entries.
@@ -17,7 +53,9 @@ function serialise(list) {
 
   for (const li of list.children) {
     const widget = li.firstElementChild;
-    if (!widget || !SUPPORTED_TAGS.has(widget.tagName.toLowerCase())) continue;
+    if (!widget || !WIDGETS.some((w) => w.tag === widget.tagName.toLowerCase())) {
+      continue;
+    }
 
     /** @type {Record<string, string>} */
     const attributes = {};
@@ -50,44 +88,3 @@ function deserialise(list, entries) {
     list.appendChild(li);
   }
 }
-
-/**
- * Load saved widgets from localStorage and rebuild the list DOM.
- * Returns `true` if saved state was restored, `false` if there was
- * nothing to restore (first visit).
- * @param {HTMLElement} list  The <ul> container element.
- * @returns {boolean}
- */
-export const loadStorage = (list) => {
-  try {
-    const raw = localStorage.getItem(STORAGE_KEY);
-    if (raw == null) return false;
-
-    const parsed = JSON.parse(raw);
-    if (!Array.isArray(parsed)) return false;
-
-    // Validate each entry before returning.
-    const entries = parsed.filter(
-      (e) =>
-        e &&
-        typeof e.tag === 'string' &&
-        SUPPORTED_TAGS.has(e.tag) &&
-        e.attributes &&
-        typeof e.attributes === 'object',
-    );
-
-    deserialise(list, entries);
-    return true;
-  } catch {
-    return false;
-  }
-};
-
-export const saveStorage = (list) => {
-  try {
-    const entries = serialise(list);
-    localStorage.setItem(STORAGE_KEY, JSON.stringify(entries));
-  } catch {
-    // Storage may be full or unavailable — fail silently.
-  }
-};
