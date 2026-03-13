@@ -1,0 +1,30 @@
+#progress-ring,
+#progress-background {
+  fill: transparent;
+  stroke-width: 20px;
+  stroke-linecap: butt;
+  transform: rotate(-90deg);
+  transform-origin: center center;
+
+  transition-property: stroke, stroke-dashoffset;
+  transition-duration: var(--tick-duration, 1s);
+  transition-timing-function: linear;
+}
+
+#progress-ring {
+  stroke: var(--progress-1-colour, royalblue);
+  stroke-dasharray: var(--circumference);
+  stroke-dashoffset: calc(var(--circumference) * (1 - var(--progress)));
+}
+
+#progress-background {
+  stroke: color-mix(in srgb, var(--progress-colour, royalblue) 20%, transparent);
+}
+
+:host([data-state="finished"]) #progress-ring {
+  stroke: transparent;
+}
+
+:host([data-state="finished"]) #progress-background {
+  stroke: color-mix(in srgb, var(--progress-done-colour, crimson) 20%, transparent);
+}

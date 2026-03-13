@@ -21,6 +21,8 @@ const DEFAULTS = Object.freeze({
   rounds: 4,
 });
 
+const SVG_NS = 'http://www.w3.org/2000/svg';
+
 class PomodoroTimer extends HTMLElement {
   /** @type {number} Work duration in deci-seconds */
   #work;
@@ -40,8 +42,16 @@ class PomodoroTimer extends HTMLElement {
   /** @type {number} Time remaining in current phase in deci-seconds */
   #timeRemaining;
 
-  /** @type {SVGCircleElement} */
-  #progressRingEl;
+  /** Circumference of the progress ring in SVG user units. */
+  #circumference = 0;
+
+  /** Total duration of one full cycle in deci-seconds. */
+  #totalDuration = 0;
+
+  /** @type {SVGGElement} */
+  #bgGroup;
+  /** @type {SVGGElement} */
+  #fgGroup;
   /** @type {HTMLTimeElement} */
   #timeEl;
   /** @type {HTMLElement} */
@@ -101,7 +111,8 @@ class PomodoroTimer extends HTMLElement {
       this.shadowRoot.adoptedStyleSheets = sheets;
       this.shadowRoot.appendChild(template.content.cloneNode(true));
 
-      this.#progressRingEl = this.shadowRoot.getElementById('progress-ring');
+      this.#bgGroup = this.shadowRoot.getElementById('segments-background');
+      this.#fgGroup = this.shadowRoot.getElementById('segments-foreground');
       this.#timeEl = this.shadowRoot.getElementById('timer-text');
       this.#phaseLabelEl = this.shadowRoot.getElementById('phase-label');
       this.#pauseBtn = this.shadowRoot.getElementById('pause-btn');
@@ -122,14 +133,12 @@ class PomodoroTimer extends HTMLElement {
       this.#initSettings();
     }
 
+    this.#circumference = 2 * Math.PI * 40; // r=40 in the SVG viewBox
+
     this.#readAttributes();
     this.#updateRoundsUI();
+    this.#buildSegments();
     this.#initPhase();
-
-    this.#progressRingEl.style.setProperty(
-      '--circumference',
-      (2 * Math.PI * this.#progressRingEl.r.baseVal.value).toFixed(4) + 'px',
-    );
 
     this.#state = State.PAUSED;
     this.#render();
@@ -156,6 +165,83 @@ class PomodoroTimer extends HTMLElement {
     this.#rounds = parseInt(this.getAttribute('rounds') ?? String(DEFAULTS.rounds), 10);
   }
 
+  // --- Segments -----------------------------------------------------------
+
+  /**
+   * Build SVG circle elements for the full pomodoro cycle.
+   * Iterates rounds to produce interleaved work/break segments
+   * (e.g. 4 rounds: W, SB, W, SB, W, SB, W, LB).
+   */
+  #buildSegments() {
+    this.#bgGroup.innerHTML = '';
+    this.#fgGroup.innerHTML = '';
+
+    this.#totalDuration = this.#rounds * this.#work
+      + (this.#rounds - 1) * this.#shortBreak
+      + this.#longBreak;
+
+    const C = this.#circumference;
+    let cumulativeArc = 0;
+
+    for (let r = 1; r <= this.#rounds; r++) {
+      // Work segment
+      const workArc = (this.#work / this.#totalDuration) * C;
+      cumulativeArc += workArc;
+      this.#addSegmentPair(Phase.WORK, workArc, cumulativeArc, C);
+
+      // Break segment
+      const isLast = r === this.#rounds;
+      const breakPhase = isLast ? Phase.LONG_BREAK : Phase.SHORT_BREAK;
+      const breakArc = ((isLast ? this.#longBreak : this.#shortBreak) / this.#totalDuration) * C;
+      cumulativeArc += breakArc;
+      this.#addSegmentPair(breakPhase, breakArc, cumulativeArc, C);
+    }
+  }
+
+  /**
+   * Append a background + foreground circle pair for one segment.
+   * @param {string} phase        Phase type (for data-phase / CSS colour)
+   * @param {number} arcLength    Arc length in SVG units
+   * @param {number} dashOffset   Cumulative offset (positions the arc CCW)
+   * @param {number} C            Circumference
+   */
+  #addSegmentPair(phase, arcLength, dashOffset, C) {
+    const attrs = { cx: '50', cy: '50', r: '40' };
+    const dasharray = `${arcLength.toFixed(4)} ${(C - arcLength).toFixed(4)}`;
+    const offset = dashOffset.toFixed(4);
+
+    for (const [cls, group] of [['segment-bg', this.#bgGroup], ['segment-fg', this.#fgGroup]]) {
+      const circle = document.createElementNS(SVG_NS, 'circle');
+      for (const [k, v] of Object.entries(attrs)) circle.setAttribute(k, v);
+      circle.classList.add('segment', cls);
+      circle.dataset.phase = phase;
+      circle.dataset.arc = arcLength.toFixed(4);
+      circle.style.strokeDasharray = dasharray;
+      circle.style.strokeDashoffset = offset;
+      group.appendChild(circle);
+    }
+  }
+
+  /**
+   * Compute the total deci-seconds elapsed before the current phase started.
+   * @returns {number}
+   */
+  #elapsedBeforeCurrentPhase() {
+    let elapsed = 0;
+    for (let r = 1; r <= this.#rounds; r++) {
+      if (this.#currentPhase === Phase.WORK && r === this.#currentRound) return elapsed;
+      elapsed += this.#work;
+
+      const isLast = r === this.#rounds;
+      const breakPhase = isLast ? Phase.LONG_BREAK : Phase.SHORT_BREAK;
+      if (this.#currentPhase === breakPhase && (isLast || r === this.#currentRound)) return elapsed;
+      elapsed += isLast ? this.#longBreak : this.#shortBreak;
+    }
+    return elapsed;
+  }
+
+  // --- Phase management ---------------------------------------------------
+
   /** Set up the current phase duration and time remaining. */
   #initPhase() {
     switch (this.#currentPhase) {
@@ -175,8 +261,8 @@ class PomodoroTimer extends HTMLElement {
 
   /**
    * Determine the next phase and advance to it.
-   * Work → short break (or long break if last round)
-   * Any break → next work round
+   * Work -> short break (or long break if last round)
+   * Any break -> next work round
    */
   #advancePhase() {
     if (this.#currentPhase === Phase.WORK) {
@@ -340,6 +426,7 @@ class PomodoroTimer extends HTMLElement {
     clearPulseSyncDelay(this);
     this.#currentRound = 1;
     this.#currentPhase = Phase.WORK;
+    this.#buildSegments();
     this.#initPhase();
     this.#state = State.PAUSED;
     this.#render();
@@ -364,12 +451,12 @@ class PomodoroTimer extends HTMLElement {
   #updatePauseButton() {
     switch (this.#state) {
       case State.RUNNING:
-        this.#pauseBtn.textContent = '⏸︎';
+        this.#pauseBtn.textContent = '\u23F8\uFE0E';
         this.#pauseBtn.title = 'Pause timer';
         this.#pauseBtn.setAttribute('aria-label', 'Pause timer');
         break;
       case State.PAUSED: {
-        this.#pauseBtn.textContent = '▶︎';
+        this.#pauseBtn.textContent = '\u25B6\uFE0E';
         const label = this.#currentPhaseLabel();
         this.#pauseBtn.title = `Start ${label}`;
         this.#pauseBtn.setAttribute('aria-label', `Start ${label}`);
@@ -378,7 +465,7 @@ class PomodoroTimer extends HTMLElement {
       case State.FINISHED: {
         // Show what the NEXT phase will be
         const nextLabel = this.#nextPhaseLabel();
-        this.#pauseBtn.textContent = '⏭︎';
+        this.#pauseBtn.textContent = '\u23ED\uFE0E';
         this.#pauseBtn.title = `Move to ${nextLabel}`;
         this.#pauseBtn.setAttribute('aria-label', `Move to ${nextLabel}`);
         break;
@@ -449,7 +536,7 @@ class PomodoroTimer extends HTMLElement {
     }
     if (this.#shortBreakLabel) {
       this.#shortBreakLabel.textContent = single
-        ? 'Short break (seconds) — not used with 1 round'
+        ? 'Short break (seconds) \u2014 not used with 1 round'
         : 'Short break (seconds)';
     }
     if (this.#longBreakLabel) {
@@ -482,16 +569,46 @@ class PomodoroTimer extends HTMLElement {
     }
   }
 
+  /**
+   * Render all segment foreground circles to reflect current progress.
+   *
+   * Uses global elapsed time to determine which segments are consumed,
+   * active, or future — without needing a stored schedule array.
+   */
   #render() {
-    const progress = this.#timeRemaining / this.#phaseDuration;
     const { text, datetime, tickDuration } = formatTime(this.#timeRemaining);
-
-    this.#progressRingEl.style.setProperty('--progress', progress);
-    this.#progressRingEl.style.setProperty('--tick-duration', tickDuration);
     this.#timeEl.textContent = text;
     this.#timeEl.setAttribute('datetime', datetime);
-
     this.#updatePhaseLabel();
+
+    const C = this.#circumference;
+    const consumed = this.#elapsedBeforeCurrentPhase() + (this.#phaseDuration - this.#timeRemaining);
+    const fgCircles = this.#fgGroup.children;
+    let segmentEnd = 0;
+
+    for (let i = 0; i < fgCircles.length; i++) {
+      const fg = /** @type {SVGCircleElement} */ (fgCircles[i]);
+      const arcLength = parseFloat(fg.dataset.arc);
+      const segmentStart = segmentEnd;
+      segmentEnd += (arcLength / C) * this.#totalDuration;
+
+      const segmentConsumed = consumed - segmentStart;
+
+      if (segmentConsumed >= segmentEnd - segmentStart) {
+        // Fully consumed
+        fg.style.strokeDasharray = `0 ${C.toFixed(4)}`;
+        fg.style.transitionDuration = '0s';
+      } else if (segmentConsumed > 0) {
+        // Active — shrink visible dash; drains counter-clockwise from 12
+        const visibleLength = arcLength * (1 - segmentConsumed / (segmentEnd - segmentStart));
+        fg.style.strokeDasharray = `${visibleLength.toFixed(4)} ${(C - visibleLength).toFixed(4)}`;
+        fg.style.transitionDuration = tickDuration;
+      } else {
+        // Future — fully visible
+        fg.style.strokeDasharray = `${arcLength.toFixed(4)} ${(C - arcLength).toFixed(4)}`;
+        fg.style.transitionDuration = '0s';
+      }
+    }
   }
 }
 

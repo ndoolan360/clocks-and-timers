@@ -36,6 +36,7 @@ class CountdownTimer extends HTMLElement {
   async connectedCallback() {
     const { template, sheets } = await loadComponentFromFiles(
       new URL('./countdown-timer.html', import.meta.url),
+      new URL('./countdown-timer.css', import.meta.url),
       new URL('../timer.css', import.meta.url),
       new URL('../shared.css', import.meta.url)
     );
