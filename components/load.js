@@ -16,7 +16,7 @@ export async function loadComponentFromFiles(templateUrl, ...extraSheetUrls) {
         return r.text();
       })
       .then(html => { template.innerHTML = html; }),
-    ...extraSheetUrls.map(url =>
+    ...extraSheetUrls.map((url, i) =>
       fetch(url)
         .then(r => {
           if (!r.ok) throw new Error(`Failed to load stylesheet ${url}: ${r.status} ${r.statusText}`);
@@ -25,7 +25,7 @@ export async function loadComponentFromFiles(templateUrl, ...extraSheetUrls) {
         .then(css => {
           const sheet = new CSSStyleSheet();
           sheet.replaceSync(css);
-          sheets.push(sheet);
+          sheets[i] = sheet;
         })
     ),
   ]);

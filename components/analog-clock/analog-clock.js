@@ -18,8 +18,9 @@ class AnalogClock extends HTMLElement {
   async connectedCallback() {
     const { template, sheets } = await loadComponentFromFiles(
       new URL('./analog-clock.html', import.meta.url),
-      new URL('./analog-clock.css', import.meta.url),
-      new URL('../shared.css', import.meta.url)
+      new URL('../shared.css', import.meta.url),
+      new URL('../clock.css', import.meta.url),
+      new URL('./analog-clock.css', import.meta.url)
     );
 
     if (!this.shadowRoot) {

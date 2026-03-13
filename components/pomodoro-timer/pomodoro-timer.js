@@ -101,9 +101,9 @@ class PomodoroTimer extends HTMLElement {
   async connectedCallback() {
     const { template, sheets } = await loadComponentFromFiles(
       new URL('./pomodoro-timer.html', import.meta.url),
-      new URL('./pomodoro-timer.css', import.meta.url),
+      new URL('../shared.css', import.meta.url),
       new URL('../timer.css', import.meta.url),
-      new URL('../shared.css', import.meta.url)
+      new URL('./pomodoro-timer.css', import.meta.url)
     );
 
     if (!this.shadowRoot) {
