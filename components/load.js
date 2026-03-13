@@ -1,7 +1,7 @@
 /**
  * Loads a component's template and stylesheets.
  * @param {URL} templateUrl
-  * @param  {...URL} extraSheetUrls
+ * @param  {...URL} extraSheetUrls
  * @returns {Promise<{ template: HTMLTemplateElement, sheets: CSSStyleSheet[] }>}
  */
 export async function loadComponentFromFiles(templateUrl, ...extraSheetUrls) {
@@ -9,13 +9,19 @@ export async function loadComponentFromFiles(templateUrl, ...extraSheetUrls) {
   /** @type {CSSStyleSheet[]} */
   const sheets = [];
 
-  await Promise.allSettled([
+  const results = await Promise.allSettled([
     fetch(templateUrl)
-      .then(r => r.text())
+      .then(r => {
+        if (!r.ok) throw new Error(`Failed to load template ${templateUrl}: ${r.status} ${r.statusText}`);
+        return r.text();
+      })
       .then(html => { template.innerHTML = html; }),
     ...extraSheetUrls.map(url =>
       fetch(url)
-        .then(r => r.text())
+        .then(r => {
+          if (!r.ok) throw new Error(`Failed to load stylesheet ${url}: ${r.status} ${r.statusText}`);
+          return r.text();
+        })
         .then(css => {
           const sheet = new CSSStyleSheet();
           sheet.replaceSync(css);
@@ -23,6 +29,12 @@ export async function loadComponentFromFiles(templateUrl, ...extraSheetUrls) {
         })
     ),
   ]);
+
+  for (const result of results) {
+    if (result.status === 'rejected') {
+      console.error('[loadComponentFromFiles]', result.reason);
+    }
+  }
 
   return { template, sheets };
 }
