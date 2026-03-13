@@ -1,6 +1,7 @@
 import '../components/analog-clock/analog-clock.js';
 import '../components/countdown-timer/countdown-timer.js';
 import '../components/pomodoro-timer/pomodoro-timer.js';
+import '../components/stopwatch-clock/stopwatch-clock.js';
 import {
   unlockAudio,
   registerAlarmStartEvents,
@@ -9,9 +10,11 @@ import {
 import { loadStorage, saveStorage } from './storage.js';
 import { initDrag } from './drag.js';
 
-// Widget set-up
-const list = document.getElementById('clocks-and-timers');
-const widgets = [
+/**
+ * Set of supported widgets, with their tag names and attributes.
+ * @type {{ tag: string, attributes?: string[] }[]} WidgetList
+ */
+export const WIDGETS = [
   {
     tag: 'analog-clock',
     attributes: ['timezone'],
@@ -24,7 +27,11 @@ const widgets = [
     tag: 'pomodoro-timer',
     attributes: ['work', 'short-break', 'long-break', 'rounds'],
   },
+  { tag: 'stopwatch-clock' },
 ]
+
+// The <ul> container for the list of widgets.
+const list = document.getElementById('clocks-and-timers');
 
 // Audio set-up
 unlockAudio();
@@ -55,10 +62,10 @@ observer.observe(list, {
   childList: true,
   subtree: true,
   attributes: true,
-  attributeFilter: widgets.flatMap(w => w.attributes),
+  attributeFilter: WIDGETS.flatMap(w => w.attributes),
 });
 
-for (const { tag } of widgets) {
+for (const { tag } of WIDGETS) {
   const addBtn = document.getElementById(`add-${tag}`);
   if (!addBtn) {
     console.warn(`No add button found for ${tag}, skipping widget initialisation`);

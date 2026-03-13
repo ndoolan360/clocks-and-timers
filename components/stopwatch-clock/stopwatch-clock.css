@@ -1,0 +1,54 @@
+/* ---- Second hand ---- */
+
+#second-hand {
+  animation: sweep 60s linear infinite;
+  animation-play-state: paused;
+}
+
+:host([data-state="running"]) #second-hand {
+  animation-play-state: running;
+}
+
+/* ---- Dial numbers (shared base) ---- */
+
+.dial-number {
+  fill: var(--foreground, #DDD);
+  stroke: none;
+  font-size: 5px;
+  text-anchor: middle;
+  opacity: 0.6;
+}
+
+/* ---- Minute sub-dial ---- */
+
+.sub-dial-face {
+  stroke: var(--foreground, #DDD);
+  fill: none;
+  stroke-width: 0.3px;
+}
+
+/* Ticks on sub-dial: 10 dashes around r=10, circumference = 2π×10 ≈ 62.832 */
+/* gap = 62.832 / 10 - 0.5 ≈ 5.7832 */
+.tick-ring.sub-dial {
+  --gap: 5.7832;
+  stroke-dashoffset: calc(-1 * var(--gap) / 2);
+  stroke-width: 2px;
+  stroke-dasharray: 0.5 var(--gap);
+  opacity: 0.7;
+}
+
+.sub-dial-number {
+  font-size: 2.8px;
+}
+
+.sub-dial-hand {
+  stroke: red;
+  stroke-width: 1px;
+  transform-origin: 50px 25px;
+  animation: sweep 1800s linear infinite;
+  animation-play-state: paused;
+}
+
+:host([data-state="running"]) .sub-dial-hand {
+  animation-play-state: running;
+}

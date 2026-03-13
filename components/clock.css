@@ -1,0 +1,77 @@
+#clock {
+  position: absolute;
+  inset: 1rem;
+  width: calc(100% - 2rem);
+  height: calc(100% - 2rem);
+}
+
+#clock-text {
+  display: block;
+  width: 100%;
+  text-align: center;
+  margin: 0;
+  padding: 0;
+  font-size: 16px;
+  height: max-content;
+}
+
+#clock,
+.hand,
+#clock-face {
+  stroke: var(--foreground, #DDD);
+  fill: none;
+  stroke-width: 0.125rem;
+  stroke-linecap: round;
+  transform-origin: 50% 40%;
+}
+
+#second-hand {
+  stroke: red;
+  stroke-width: 2px;
+}
+
+@keyframes sweep {
+  from {
+    transform: rotate(var(--start, 0deg));
+  }
+
+  to {
+    transform: rotate(calc(var(--start, 0deg) + 360deg));
+  }
+}
+
+/* ---- Tick rings (dasharray-based marks) ---- */
+
+/*
+ * Pre-computed dasharray values (no calc() in stroke-dasharray for Firefox).
+ * r = 37, circumference = 2π×37 ≈ 232.4779
+ * minor gap = circumference / 60 - 0.5 ≈ 3.3746
+ * minor last = gap + 0.5                ≈ 3.8746
+ * major gap = circumference / 12 - 0.8  ≈ 18.5732
+ */
+
+.tick-ring {
+  fill: none;
+  stroke: var(--foreground, #DDD);
+  stroke-linecap: butt;
+  transform-origin: 50px 40px;
+}
+
+/* Minor ticks: 4-of-every-5 dashes around r=37 (skips major positions) */
+.tick-ring.minor {
+  --gap: 3.3746;
+  --last: 3.8746;
+  stroke-width: 3px;
+  stroke-dashoffset: -0.25;
+  stroke-dasharray: 0 var(--gap) 0.5 var(--gap) 0.5 var(--gap) 0.5 var(--gap) 0.5 var(--last);
+  opacity: 0.4;
+}
+
+/* Major ticks: 12 dashes around r=37, every 5th mark */
+.tick-ring.major {
+  --gap: 18.5732;
+  stroke-width: 5px;
+  stroke-dashoffset: 0.4;
+  stroke-dasharray: 0.8 var(--gap);
+  opacity: 0.7;
+}
