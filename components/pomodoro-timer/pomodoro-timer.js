@@ -24,11 +24,11 @@ const DEFAULTS = Object.freeze({
 const SVG_NS = 'http://www.w3.org/2000/svg';
 
 class PomodoroTimer extends HTMLElement {
-  /** @type {number} Work duration in deci-seconds */
+  /** @type {number} Work duration in milliseconds */
   #work;
-  /** @type {number} Short break duration in deci-seconds */
+  /** @type {number} Short break duration in milliseconds */
   #shortBreak;
-  /** @type {number} Long break duration in deci-seconds */
+  /** @type {number} Long break duration in milliseconds */
   #longBreak;
   /** @type {number} Work sessions per cycle before long break */
   #rounds;
@@ -37,15 +37,15 @@ class PomodoroTimer extends HTMLElement {
   #currentRound = 1;
   /** @type {string} Current phase */
   #currentPhase = Phase.WORK;
-  /** @type {number} Duration of the current phase in deci-seconds */
+  /** @type {number} Duration of the current phase in milliseconds */
   #phaseDuration;
-  /** @type {number} Time remaining in current phase in deci-seconds */
+  /** @type {number} Time remaining in current phase in milliseconds */
   #timeRemaining;
 
   /** Circumference of the progress ring in SVG user units. */
   #circumference = 0;
 
-  /** Total duration of one full cycle in deci-seconds. */
+  /** Total duration of one full cycle in milliseconds. */
   #totalDuration = 0;
 
   /** @type {SVGGElement} */
@@ -69,8 +69,11 @@ class PomodoroTimer extends HTMLElement {
   /** @type {HTMLElement | null} */
   #longBreakLabel = null;
 
+  /** @type {number | null} Epoch ms when the current phase started counting down. */
+  #startEpoch = null;
+
   /** @type {TickEngine} */
-  #tickEngine = new TickEngine((decrement) => this.#tick(decrement));
+  #tickEngine = new TickEngine(() => this.#tick());
 
   /** Whether the timer is in single-round mode. */
   get #isSingleRound() {
@@ -80,11 +83,11 @@ class PomodoroTimer extends HTMLElement {
   static observedAttributes = ['work', 'short-break', 'long-break', 'rounds'];
 
   get #state() {
-    return this.getAttribute('data-state');
+    return this.getAttribute('state');
   }
 
   set #state(value) {
-    this.setAttribute('data-state', value);
+    this.setAttribute('state', value);
     this.#updatePauseButton();
   }
 
@@ -101,7 +104,7 @@ class PomodoroTimer extends HTMLElement {
   async connectedCallback() {
     const { template, sheets } = await loadComponentFromFiles(
       new URL('./pomodoro-timer.html', import.meta.url),
-      new URL('../shared.css', import.meta.url),
+      new URL('../component.css', import.meta.url),
       new URL('../timer.css', import.meta.url),
       new URL('./pomodoro-timer.css', import.meta.url)
     );
@@ -140,12 +143,58 @@ class PomodoroTimer extends HTMLElement {
     this.#buildSegments();
     this.#initPhase();
 
-    this.#state = State.PAUSED;
+    if (this.#startEpoch === null) {
+      const startTime = this.getAttribute('start-time');
+      const elapsed = this.getAttribute('elapsed');
+      const priorMs = elapsed ? Number(elapsed) : 0;
+
+      if (startTime) {
+        this.#startEpoch = Number(startTime);
+        const cycleElapsed = priorMs + (Date.now() - this.#startEpoch);
+
+        if (cycleElapsed < this.#totalDuration) {
+          this.#restorePhase(cycleElapsed);
+        } else {
+          this.#timeRemaining = 0;
+          setPulseSyncDelay(this);
+          this.removeAttribute('start-time');
+          this.#state = State.FINISHED;
+          this.dispatchEvent(new CustomEvent('timer-finished', { bubbles: true }));
+        }
+      } else if (priorMs > 0) {
+        const persistedState = this.getAttribute('state');
+        if (persistedState === State.FINISHED && priorMs <= this.#totalDuration) {
+          // Restore to the phase that just completed, with time at zero.
+          this.#restorePhase(Math.max(0, priorMs - 1));
+          this.#timeRemaining = 0;
+          setPulseSyncDelay(this);
+          this.#state = State.FINISHED;
+          this.dispatchEvent(new CustomEvent('timer-finished', { bubbles: true }));
+        } else if (priorMs < this.#totalDuration) {
+          this.#restorePhase(priorMs);
+          this.#state = State.PAUSED;
+        } else {
+          this.#state = State.PAUSED;
+        }
+      } else if (this.#state !== State.RUNNING && this.#state !== State.PAUSED) {
+        this.#state = State.PAUSED;
+      }
+    }
     this.#render();
+
+    if (this.#state === State.RUNNING) {
+      this.start();
+    }
   }
 
   disconnectedCallback() {
     this.#tickEngine.stop();
+  }
+
+  /** Re-sync display to the wall clock. */
+  sync() {
+    if (this.#startEpoch === null) return;
+    this.#tick();
   }
 
   attributeChangedCallback(_, oldVal, __) {
@@ -157,11 +206,11 @@ class PomodoroTimer extends HTMLElement {
     this.#fullReset();
   }
 
-  /** Read duration attributes into internal deci-second fields. */
+  /** Read duration attributes into internal millisecond fields. */
   #readAttributes() {
-    this.#work = parseInt(this.getAttribute('work') ?? String(DEFAULTS.work), 10) * 10;
-    this.#shortBreak = parseInt(this.getAttribute('short-break') ?? String(DEFAULTS.shortBreak), 10) * 10;
-    this.#longBreak = parseInt(this.getAttribute('long-break') ?? String(DEFAULTS.longBreak), 10) * 10;
+    this.#work = parseInt(this.getAttribute('work') ?? String(DEFAULTS.work), 10) * 1000;
+    this.#shortBreak = parseInt(this.getAttribute('short-break') ?? String(DEFAULTS.shortBreak), 10) * 1000;
+    this.#longBreak = parseInt(this.getAttribute('long-break') ?? String(DEFAULTS.longBreak), 10) * 1000;
     this.#rounds = parseInt(this.getAttribute('rounds') ?? String(DEFAULTS.rounds), 10);
   }
 
@@ -223,21 +272,58 @@ class PomodoroTimer extends HTMLElement {
   }
 
   /**
-   * Compute the total deci-seconds elapsed before the current phase started.
+   * Resolve a cycle-elapsed millisecond count into a round, phase, and offset.
+   *
+   * The cycle is: [W, SB] × (rounds − 1), then [W, LB].
+   * A "regular pair" is work + shortBreak; the final pair is work + longBreak.
+   *
+   * @param {number} elapsedMs  Milliseconds elapsed since the cycle started.
+   * @returns {{ round: number, phase: string, offset: number }}
+   */
+  #resolvePhase(elapsedMs) {
+    const regularPair = this.#work + this.#shortBreak;
+    const regularTotal = (this.#rounds - 1) * regularPair;
+
+    if (elapsedMs < regularTotal) {
+      const pairIndex = Math.floor(elapsedMs / regularPair);
+      const pairOffset = elapsedMs % regularPair;
+      return pairOffset < this.#work
+        ? { round: pairIndex + 1, phase: Phase.WORK, offset: pairOffset }
+        : { round: pairIndex + 1, phase: Phase.SHORT_BREAK, offset: pairOffset - this.#work };
+    }
+
+    const lastOffset = elapsedMs - regularTotal;
+    return lastOffset < this.#work
+      ? { round: this.#rounds, phase: Phase.WORK, offset: lastOffset }
+      : { round: this.#rounds, phase: Phase.LONG_BREAK, offset: lastOffset - this.#work };
+  }
+
+  /**
+   * Restore #currentRound, #currentPhase, #phaseDuration, and #timeRemaining
+   * from a cycle-elapsed millisecond count.
+   * @param {number} elapsedMs
+   */
+  #restorePhase(elapsedMs) {
+    const { round, phase, offset } = this.#resolvePhase(elapsedMs);
+    this.#currentRound = round;
+    this.#currentPhase = phase;
+    this.#initPhase();
+    this.#timeRemaining = this.#phaseDuration - offset;
+  }
+
+  /**
+   * Compute the total milliseconds elapsed before the current phase started.
    * @returns {number}
    */
   #elapsedBeforeCurrentPhase() {
-    let elapsed = 0;
-    for (let r = 1; r <= this.#rounds; r++) {
-      if (this.#currentPhase === Phase.WORK && r === this.#currentRound) return elapsed;
-      elapsed += this.#work;
+    const regularPair = this.#work + this.#shortBreak;
+    const fullRoundsBefore = this.#currentRound - 1;
 
-      const isLast = r === this.#rounds;
-      const breakPhase = isLast ? Phase.LONG_BREAK : Phase.SHORT_BREAK;
-      if (this.#currentPhase === breakPhase && (isLast || r === this.#currentRound)) return elapsed;
-      elapsed += isLast ? this.#longBreak : this.#shortBreak;
+    if (this.#currentPhase === Phase.WORK) {
+      return fullRoundsBefore * regularPair;
     }
-    return elapsed;
+    // Break phase — add the work segment of the current round
+    return fullRoundsBefore * regularPair + this.#work;
   }
 
   // --- Phase management ---------------------------------------------------
@@ -410,12 +496,26 @@ class PomodoroTimer extends HTMLElement {
     this.#tickEngine.start(isFineGrained(this.#timeRemaining));
     this.#state = State.RUNNING;
     this.dispatchEvent(new CustomEvent('timer-started', { bubbles: true }));
+    this.#startEpoch = Date.now() - (this.#phaseDuration - this.#timeRemaining);
+    this.setAttribute('start-time', String(this.#startEpoch));
+    const priorMs = this.#elapsedBeforeCurrentPhase();
+    if (priorMs > 0) {
+      this.setAttribute('elapsed', String(priorMs));
+    } else {
+      this.removeAttribute('elapsed');
+    }
   }
 
   pause() {
     this.#tickEngine.stop();
     this.#state = State.PAUSED;
     this.dispatchEvent(new CustomEvent('timer-paused', { bubbles: true }));
+    const elapsedMs = this.#elapsedBeforeCurrentPhase() + (this.#phaseDuration - this.#timeRemaining);
+    this.#startEpoch = null;
+    this.removeAttribute('start-time');
+    if (elapsedMs > 0) {
+      this.setAttribute('elapsed', String(elapsedMs));
+    }
   }
 
   /**
@@ -423,6 +523,9 @@ class PomodoroTimer extends HTMLElement {
    */
   #fullReset() {
     this.#tickEngine.stop();
+    this.#startEpoch = null;
+    this.removeAttribute('start-time');
+    this.removeAttribute('elapsed');
     clearPulseSyncDelay(this);
     this.#currentRound = 1;
     this.#currentPhase = Phase.WORK;
@@ -435,12 +538,11 @@ class PomodoroTimer extends HTMLElement {
 
   #togglePause() {
     if (this.#state === State.FINISHED) {
-      // Advance to the next phase
+      // Advance to the next phase and start it
       clearPulseSyncDelay(this);
       this.#advancePhase();
-      this.#state = State.PAUSED;
       this.#render();
-      this.dispatchEvent(new CustomEvent('timer-paused', { bubbles: true }));
+      this.start();
     } else if (this.#state === State.RUNNING) {
       this.pause();
     } else {
@@ -548,10 +650,11 @@ class PomodoroTimer extends HTMLElement {
 
   // --- Tick and render ----------------------------------------------------
 
-  /** @param {number} decrement  Deci-seconds to subtract this tick. */
-  #tick(decrement) {
+  #tick() {
     const wasFineGrained = isFineGrained(this.#timeRemaining);
-    this.#timeRemaining = Math.max(0, this.#timeRemaining - decrement);
+    if (this.#startEpoch !== null) {
+      this.#timeRemaining = Math.max(0, this.#phaseDuration - (Date.now() - this.#startEpoch));
+    }
 
     // Switch interval speed when crossing the 60-second boundary.
     if (!wasFineGrained && isFineGrained(this.#timeRemaining)) {
@@ -562,6 +665,10 @@ class PomodoroTimer extends HTMLElement {
 
     if (this.#timeRemaining <= 0) {
       this.#tickEngine.stop();
+      this.#startEpoch = null;
+      this.removeAttribute('start-time');
+      const cycleElapsed = this.#elapsedBeforeCurrentPhase() + this.#phaseDuration;
+      this.setAttribute('elapsed', String(cycleElapsed));
       setPulseSyncDelay(this);
       this.#state = State.FINISHED;
       this.dispatchEvent(new CustomEvent('timer-finished', { bubbles: true }));

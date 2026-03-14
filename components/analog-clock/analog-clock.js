@@ -18,7 +18,7 @@ class AnalogClock extends HTMLElement {
   async connectedCallback() {
     const { template, sheets } = await loadComponentFromFiles(
       new URL('./analog-clock.html', import.meta.url),
-      new URL('../shared.css', import.meta.url),
+      new URL('../component.css', import.meta.url),
       new URL('../clock.css', import.meta.url),
       new URL('./analog-clock.css', import.meta.url)
     );
@@ -38,9 +38,14 @@ class AnalogClock extends HTMLElement {
       this.#initTimezoneSelect();
     }
 
+    this.sync();
+    this.#intervalId = setInterval(() => this.#updateText(), 1000);
+  }
+
+  /** Re-sync hands and text to the current wall-clock time. */
+  sync() {
     this.#initHands();
     this.#updateText();
-    this.#intervalId = setInterval(() => this.#updateText(), 1000);
   }
 
   disconnectedCallback() {

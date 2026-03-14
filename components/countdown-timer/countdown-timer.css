@@ -21,10 +21,10 @@
   stroke: color-mix(in srgb, var(--progress-colour, royalblue) 20%, transparent);
 }
 
-:host([data-state="finished"]) #progress-ring {
+:host([state="finished"]) #progress-ring {
   stroke: transparent;
 }
 
-:host([data-state="finished"]) #progress-background {
+:host([state="finished"]) #progress-background {
   stroke: color-mix(in srgb, var(--progress-done-colour, crimson) 20%, transparent);
 }

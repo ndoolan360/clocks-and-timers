@@ -1,6 +1,8 @@
 /**
  * Shared timer utilities for countdown-timer and pomodoro-timer components.
  * Pure utility — no DOM assumptions beyond what's passed in.
+ *
+ * All time values are in milliseconds unless otherwise noted.
  */
 
 /** Timer state constants. */
@@ -10,39 +12,39 @@ export const State = Object.freeze({
   FINISHED: 'finished',
 });
 
-/** Deci-second threshold for switching to fine-grained ticks (60 seconds). */
-export const DECISECOND_THRESHOLD = 600;
+/** Threshold for switching to fine-grained ticks (60 seconds). */
+export const FINE_THRESHOLD_MS = 60_000;
 
-/** Deci-second threshold for switching to hour display (60 minutes). */
-export const HOUR_THRESHOLD = 36000;
+/** Threshold for switching to hour display (60 minutes). */
+export const HOUR_THRESHOLD_MS = 3_600_000;
 
 /** Alarm pulse period in milliseconds (2 pulses per second). */
 export const ALARM_PULSE_PERIOD_MS = 500;
 
 /**
  * Whether the given time is in the fine-grained (deci-second) phase.
- * @param {number} deciSeconds  Time remaining in deci-seconds.
+ * @param {number} ms  Time remaining in milliseconds.
  * @returns {boolean}
  */
-export function isFineGrained(deciSeconds) {
-  return deciSeconds < DECISECOND_THRESHOLD;
+export function isFineGrained(ms) {
+  return ms < FINE_THRESHOLD_MS;
 }
 
 /**
- * Convert deci-seconds remaining into display text, a datetime attribute value,
+ * Convert milliseconds remaining into display text, a datetime attribute value,
  * and the appropriate tick duration for CSS transitions.
  *
- * @param {number} deciSeconds  Time remaining in deci-seconds.
+ * @param {number} ms  Time remaining in milliseconds.
  * @returns {{ text: string, datetime: string, tickDuration: string }}
  */
-export function formatTime(deciSeconds) {
-  const totalSeconds = Math.floor(deciSeconds / 10);
+export function formatTime(ms) {
+  const totalSeconds = Math.floor(ms / 1000);
   const hours = Math.floor(totalSeconds / 3600);
   const minutes = Math.floor((totalSeconds % 3600) / 60);
   const seconds = totalSeconds % 60;
-  const deciseconds = deciSeconds % 10;
+  const deciseconds = Math.floor((ms % 1000) / 100);
 
-  if (isFineGrained(deciSeconds)) {
+  if (isFineGrained(ms)) {
     // Below 60 s — show SS.D
     return {
       text: `${seconds}.${deciseconds}`,
@@ -51,7 +53,7 @@ export function formatTime(deciSeconds) {
     };
   }
 
-  if (deciSeconds < HOUR_THRESHOLD) {
+  if (ms < HOUR_THRESHOLD_MS) {
     // 60 s – 59 min — show MM:SS
     return {
       text: `${minutes}:${String(seconds).padStart(2, '0')}`,
@@ -94,12 +96,11 @@ export class TickEngine {
   /** @type {number | null} */
   #intervalId = null;
 
-  /** @type {(decrement: number) => void} */
+  /** @type {() => void} */
   #onTick;
 
   /**
-   * @param {(decrement: number) => void} onTick  Called each tick with the
-   *     number of deci-seconds to subtract (1 for fine-grained, 10 otherwise).
+   * @param {() => void} onTick  Called each tick.
    */
   constructor(onTick) {
     this.#onTick = onTick;
@@ -112,11 +113,7 @@ export class TickEngine {
    */
   start(fineGrained) {
     this.stop();
-    if (fineGrained) {
-      this.#intervalId = setInterval(() => this.#onTick(1), 100);
-    } else {
-      this.#intervalId = setInterval(() => this.#onTick(10), 1000);
-    }
+    this.#intervalId = setInterval(this.#onTick, fineGrained ? 100 : 1000);
   }
 
   /** Stop the interval if one is running. */

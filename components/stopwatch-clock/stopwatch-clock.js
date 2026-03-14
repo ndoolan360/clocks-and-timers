@@ -16,15 +16,17 @@ const SUB_NUM_COUNT = 10;
 const SUB_NUM_STEP = 3;
 const SUB_NUM_MAX = 30;
 
-/** Full revolution of the minute hand in deci-seconds (30 minutes). */
-const MINUTE_REVOLUTION_DS = 30 * 60 * 10;
+/** Full revolution of the minute hand in milliseconds (30 minutes). */
+const MINUTE_REVOLUTION_MS = 30 * 60 * 1000;
 
-/** Full revolution of the second hand in deci-seconds (60 seconds). */
-const SECOND_REVOLUTION_DS = 60 * 10;
+/** Full revolution of the second hand in milliseconds (60 seconds). */
+const SECOND_REVOLUTION_MS = 60 * 1000;
 
 class StopwatchClock extends HTMLElement {
-  /** @type {number} Elapsed time in deci-seconds */
+  /** @type {number} Elapsed time in milliseconds */
   #elapsed = 0;
+  /** @type {number | null} */
+  #startEpoch = null;
   /** @type {number | null} */
   #intervalId = null;
   /** @type {SVGLineElement} */
@@ -37,18 +39,18 @@ class StopwatchClock extends HTMLElement {
   #pauseBtn;
 
   get #state() {
-    return this.getAttribute('data-state');
+    return this.getAttribute('state');
   }
 
   set #state(value) {
-    this.setAttribute('data-state', value);
+    this.setAttribute('state', value);
     this.#updatePauseButton();
   }
 
   async connectedCallback() {
     const { template, sheets } = await loadComponentFromFiles(
       new URL('./stopwatch-clock.html', import.meta.url),
-      new URL('../shared.css', import.meta.url),
+      new URL('../component.css', import.meta.url),
       new URL('../clock.css', import.meta.url),
       new URL('./stopwatch-clock.css', import.meta.url)
     );
@@ -82,13 +84,39 @@ class StopwatchClock extends HTMLElement {
       removeBtn.disabled = false;
     }
 
-    this.#initHands();
-    this.#state = 'paused';
+    if (this.#startEpoch !== null) {
+      this.#elapsed = Date.now() - this.#startEpoch;
+      this.#startInterval();
+      this.#state = 'running';
+    } else {
+      const startTime = this.getAttribute('start-time');
+      const elapsed = this.getAttribute('elapsed');
+      if (startTime) {
+        this.#startEpoch = Number(startTime);
+        this.#elapsed = Date.now() - this.#startEpoch;
+        this.#startInterval();
+        this.#state = 'running';
+      } else if (elapsed) {
+        this.#elapsed = Number(elapsed);
+        this.#state = 'paused';
+      } else {
+        this.#state = 'paused';
+      }
+      this.#initHands();
+    }
     this.#render();
   }
 
   disconnectedCallback() {
     this.#stopInterval();
+  }
+
+  /** Re-sync hands and display to the wall clock. */
+  sync() {
+    if (this.#startEpoch === null) return;
+    this.#elapsed = Date.now() - this.#startEpoch;
+    this.#initHands();
+    this.#render();
   }
 
   /**
@@ -115,19 +143,19 @@ class StopwatchClock extends HTMLElement {
   }
 
   /**
-   * Compute the current second-hand angle from elapsed deci-seconds.
+   * Compute the current second-hand angle from elapsed milliseconds.
    * @returns {number} Degrees (0–360).
    */
   #secondHandDeg() {
-    return (this.#elapsed % SECOND_REVOLUTION_DS) / SECOND_REVOLUTION_DS * 360;
+    return (this.#elapsed % SECOND_REVOLUTION_MS) / SECOND_REVOLUTION_MS * 360;
   }
 
   /**
-   * Compute the current minute-hand angle from elapsed deci-seconds.
+   * Compute the current minute-hand angle from elapsed milliseconds.
    * @returns {number} Degrees (0–360).
    */
   #minuteHandDeg() {
-    return (this.#elapsed % MINUTE_REVOLUTION_DS) / MINUTE_REVOLUTION_DS * 360;
+    return (this.#elapsed % MINUTE_REVOLUTION_MS) / MINUTE_REVOLUTION_MS * 360;
   }
 
   /**
@@ -171,10 +199,17 @@ class StopwatchClock extends HTMLElement {
   #togglePause() {
     if (this.#state === 'running') {
       this.#stopInterval();
-      // Snapshot hands to current angles so they freeze in place
       this.#initHands();
+      this.#startEpoch = null;
+      this.removeAttribute('start-time');
+      if (this.#elapsed > 0) {
+        this.setAttribute('elapsed', String(this.#elapsed));
+      }
       this.#state = 'paused';
     } else {
+      this.#startEpoch = Date.now() - this.#elapsed;
+      this.setAttribute('start-time', String(this.#startEpoch));
+      this.removeAttribute('elapsed');
       this.#startInterval();
       this.#state = 'running';
     }
@@ -183,21 +218,24 @@ class StopwatchClock extends HTMLElement {
   #reset() {
     this.#stopInterval();
     this.#elapsed = 0;
+    this.#startEpoch = null;
     this.#initHands();
+    this.removeAttribute('start-time');
+    this.removeAttribute('elapsed');
     this.#state = 'paused';
     this.#render();
   }
 
   #tick() {
-    this.#elapsed += 1;
+    if (this.#startEpoch !== null) {
+      this.#elapsed = Date.now() - this.#startEpoch;
+    }
     this.#render();
   }
 
   #render() {
-    // Digital display
-    const totalDs = this.#elapsed;
-    const ds = totalDs % 10;
-    const totalSeconds = Math.floor(totalDs / 10);
+    const totalSeconds = Math.floor(this.#elapsed / 1000);
+    const ds = Math.floor((this.#elapsed % 1000) / 100);
     const seconds = totalSeconds % 60;
     const totalMinutes = Math.floor(totalSeconds / 60);
     const minutes = totalMinutes % 60;

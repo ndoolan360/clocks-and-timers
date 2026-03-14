@@ -39,21 +39,21 @@
 }
 
 /* Finished state — hide foreground strokes, tint backgrounds red */
-:host([data-state="finished"]) .segment-fg {
+:host([state="finished"]) .segment-fg {
   stroke: transparent !important;
 }
 
-:host([data-state="finished"]) .segment-bg[data-phase="work"] {
+:host([state="finished"]) .segment-bg[data-phase="work"] {
   stroke: color-mix(in srgb, var(--progress-done-colour, crimson) 20%, transparent) !important;
   opacity: 1;
 }
 
-:host([data-state="finished"]) .segment-bg[data-phase="short-break"] {
+:host([state="finished"]) .segment-bg[data-phase="short-break"] {
   stroke: color-mix(in srgb, var(--progress-done-colour, crimson) 30%, transparent) !important;
   opacity: 1;
 }
 
-:host([data-state="finished"]) .segment-bg[data-phase="long-break"] {
+:host([state="finished"]) .segment-bg[data-phase="long-break"] {
   stroke: color-mix(in srgb, var(--progress-done-colour, crimson) 40%, transparent) !important;
   opacity: 1;
 }

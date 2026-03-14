@@ -11,9 +11,9 @@ import { loadStorage, saveStorage } from './storage.js';
 import { initDrag } from './drag.js';
 
 /**
- * Set of supported widgets, with their tag names and attributes.
- * @type {{ tag: string, attributes?: string[] }[]} WidgetList
- */
+  * Set of supported widgets, with their tag names and attributes.
+  * @type {{ tag: string, attributes?: string[] }[]} WidgetList
+  */
 export const WIDGETS = [
   {
     tag: 'analog-clock',
@@ -21,13 +21,13 @@ export const WIDGETS = [
   },
   {
     tag: 'countdown-timer',
-    attributes: ['duration'],
+    attributes: ['duration', 'start-time', 'elapsed', 'state'],
   },
   {
     tag: 'pomodoro-timer',
-    attributes: ['work', 'short-break', 'long-break', 'rounds'],
+    attributes: ['work', 'short-break', 'long-break', 'rounds', 'start-time', 'elapsed', 'state'],
   },
-  { tag: 'stopwatch-clock' },
+  { tag: 'stopwatch-clock', attributes: ['start-time', 'elapsed', 'state'] },
 ]
 
 // The <ul> container for the list of widgets.
@@ -55,6 +55,13 @@ if (!restored) {
 
 // Drag-and-drop reordering
 initDrag(list);
+
+// Re-sync all widgets when the page regains focus (e.g. after
+// sleep or background-tab throttling) so CSS animations and timers
+// snap back to the correct wall-clock state.
+window.addEventListener('focus', () =>
+  list.childNodes.forEach(li => li.firstElementChild?.sync?.()),
+);
 
 // Save on changes to the list of widgets
 const observer = new MutationObserver(() => saveStorage(list));

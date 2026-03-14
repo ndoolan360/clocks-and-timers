@@ -5,7 +5,7 @@
   animation-play-state: paused;
 }
 
-:host([data-state="running"]) #second-hand {
+:host([state="running"]) #second-hand {
   animation-play-state: running;
 }
 
@@ -49,6 +49,6 @@
   animation-play-state: paused;
 }
 
-:host([data-state="running"]) .sub-dial-hand {
+:host([state="running"]) .sub-dial-hand {
   animation-play-state: running;
 }

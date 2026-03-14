@@ -9,9 +9,9 @@ import {
 import { loadComponentFromFiles } from "../load.js";
 
 class CountdownTimer extends HTMLElement {
-  /** @type {number} Total duration in deci-seconds */
+  /** @type {number} Total duration in milliseconds */
   #totalDuration;
-  /** @type {number} Time remaining in deci-seconds */
+  /** @type {number} Time remaining in milliseconds */
   #timeRemaining;
   /** @type {SVGCircleElement} */
   #progressRingEl;
@@ -19,24 +19,26 @@ class CountdownTimer extends HTMLElement {
   #timeEl;
   /** @type {HTMLButtonElement} */
   #pauseBtn;
+  /** @type {number | null} Wall-clock epoch (ms) when the timer effectively started. */
+  #startEpoch = null;
   /** @type {TickEngine} */
-  #tickEngine = new TickEngine((decrement) => this.#tick(decrement));
+  #tickEngine = new TickEngine(() => this.#tick());
 
   static observedAttributes = ['duration'];
 
   get #state() {
-    return this.getAttribute('data-state');
+    return this.getAttribute('state');
   }
 
   set #state(value) {
-    this.setAttribute('data-state', value);
+    this.setAttribute('state', value);
     this.#updatePauseButton();
   }
 
   async connectedCallback() {
     const { template, sheets } = await loadComponentFromFiles(
       new URL('./countdown-timer.html', import.meta.url),
-      new URL('../shared.css', import.meta.url),
+      new URL('../component.css', import.meta.url),
       new URL('../timer.css', import.meta.url),
       new URL('./countdown-timer.css', import.meta.url)
     );
@@ -61,7 +63,7 @@ class CountdownTimer extends HTMLElement {
       this.#initSettings();
     }
 
-    this.#totalDuration = parseInt(this.getAttribute('duration') ?? '300', 10) * 10;
+    this.#totalDuration = parseInt(this.getAttribute('duration') ?? '300', 10) * 1000;
     this.#timeRemaining = this.#totalDuration;
 
     this.#progressRingEl.style.setProperty(
@@ -69,21 +71,48 @@ class CountdownTimer extends HTMLElement {
       (2 * Math.PI * this.#progressRingEl.r.baseVal.value).toFixed(4) + "px",
     );
 
-    this.#state = State.PAUSED;
-    this.#render();
+    if (this.#startEpoch !== null) {
+      // Already running — skip restoration.
+    } else {
+      const startTime = this.getAttribute('start-time');
+      const elapsed = this.getAttribute('elapsed');
+      if (startTime) {
+        this.#startEpoch = Number(startTime);
+        this.#timeRemaining = Math.max(0, this.#totalDuration - (Date.now() - this.#startEpoch));
+        if (this.#timeRemaining <= 0) {
+          setPulseSyncDelay(this);
+          this.#state = State.FINISHED;
+          this.dispatchEvent(new CustomEvent('timer-finished', { bubbles: true }));
+        }
+      } else if (elapsed) {
+        this.#timeRemaining = Math.max(0, this.#totalDuration - Number(elapsed));
+        this.#state = State.PAUSED;
+      } else {
+        this.#state = State.PAUSED;
+      }
+      this.#render();
 
-
+      if (this.#state === State.RUNNING) {
+        this.start();
+      }
+    }
   }
 
   disconnectedCallback() {
     this.#tickEngine.stop();
   }
 
+  /** Re-sync display to the wall clock. */
+  sync() {
+    if (this.#startEpoch === null) return;
+    this.#tick();
+  }
+
   attributeChangedCallback(name, oldVal, newVal) {
     if (!this.shadowRoot) return;
 
     if (name === 'duration' && oldVal !== null) {
-      this.#totalDuration = parseInt(newVal ?? '300', 10) * 10;
+      this.#totalDuration = parseInt(newVal ?? '300', 10) * 1000;
       const durationInput = this.shadowRoot.getElementById('setting-duration');
       if (durationInput) durationInput.value = newVal;
       this.reset();
@@ -173,18 +202,28 @@ class CountdownTimer extends HTMLElement {
     this.#tickEngine.start(isFineGrained(this.#timeRemaining));
     this.#state = State.RUNNING;
     this.dispatchEvent(new CustomEvent('timer-started', { bubbles: true }));
+    this.#startEpoch = Date.now() - (this.#totalDuration - this.#timeRemaining);
+    this.setAttribute('start-time', String(this.#startEpoch));
+    this.removeAttribute('elapsed');
   }
 
   pause() {
     this.#tickEngine.stop();
     this.#state = State.PAUSED;
     this.dispatchEvent(new CustomEvent('timer-paused', { bubbles: true }));
+    const elapsed = this.#totalDuration - this.#timeRemaining;
+    this.#startEpoch = null;
+    this.removeAttribute('start-time');
+    if (elapsed > 0) {
+      this.setAttribute('elapsed', String(elapsed));
+    }
   }
 
   reset() {
     this.pause();
     clearPulseSyncDelay(this);
     this.#timeRemaining = this.#totalDuration;
+    this.removeAttribute('elapsed');
     this.#render();
   }
 
@@ -218,10 +257,11 @@ class CountdownTimer extends HTMLElement {
     }
   }
 
-  /** @param {number} decrement  Deci-seconds to subtract this tick. */
-  #tick(decrement) {
+  #tick() {
     const wasFineGrained = isFineGrained(this.#timeRemaining);
-    this.#timeRemaining = Math.max(0, this.#timeRemaining - decrement);
+    if (this.#startEpoch !== null) {
+      this.#timeRemaining = Math.max(0, this.#totalDuration - (Date.now() - this.#startEpoch));
+    }
 
     // Switch interval speed when crossing the 60-second boundary.
     if (!wasFineGrained && isFineGrained(this.#timeRemaining)) {
@@ -232,6 +272,9 @@ class CountdownTimer extends HTMLElement {
 
     if (this.#timeRemaining <= 0) {
       this.#tickEngine.stop();
+      this.#startEpoch = null;
+      this.removeAttribute('start-time');
+      this.removeAttribute('elapsed');
       setPulseSyncDelay(this);
       this.#state = State.FINISHED;
       this.dispatchEvent(new CustomEvent('timer-finished', { bubbles: true }));

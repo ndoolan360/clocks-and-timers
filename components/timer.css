@@ -22,7 +22,7 @@
   text-align: center;
 }
 
-:host([data-state="finished"]) #timer {
+:host([state="finished"]) #timer {
   animation: finished-pulse 0.5s ease-in-out infinite;
   animation-delay: calc(var(--pulse-delay-ms, 0));
   transform-origin: center;
@@ -37,7 +37,7 @@
 
 @media (prefers-reduced-motion: reduce) {
 
-  :host([data-state="finished"]) #timer {
+  :host([state="finished"]) #timer {
     animation: none;
   }
 }
