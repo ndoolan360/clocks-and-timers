@@ -83,6 +83,8 @@ class CountdownTimer extends HTMLElement {
           setPulseSyncDelay(this);
           this.#state = State.FINISHED;
           this.dispatchEvent(new CustomEvent('timer-finished', { bubbles: true }));
+        } else {
+          this.#state = State.RUNNING;
         }
       } else if (elapsed) {
         this.#timeRemaining = Math.max(0, this.#totalDuration - Number(elapsed));

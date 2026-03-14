@@ -72,6 +72,9 @@ class PomodoroTimer extends HTMLElement {
   /** @type {number | null} Epoch ms when the current phase started counting down. */
   #startEpoch = null;
 
+  /** Whether connectedCallback has completed initial setup. */
+  #initialized = false;
+
   /** @type {TickEngine} */
   #tickEngine = new TickEngine(() => this.#tick());
 
@@ -154,6 +157,7 @@ class PomodoroTimer extends HTMLElement {
 
         if (cycleElapsed < this.#totalDuration) {
           this.#restorePhase(cycleElapsed);
+          this.#state = State.RUNNING;
         } else {
           this.#timeRemaining = 0;
           setPulseSyncDelay(this);
@@ -185,6 +189,8 @@ class PomodoroTimer extends HTMLElement {
     if (this.#state === State.RUNNING) {
       this.start();
     }
+
+    this.#initialized = true;
   }
 
   disconnectedCallback() {
@@ -197,9 +203,8 @@ class PomodoroTimer extends HTMLElement {
     this.#tick();
   }
 
-  attributeChangedCallback(_, oldVal, __) {
-    if (!this.shadowRoot) return;
-    if (oldVal === null) return;
+  attributeChangedCallback(_, _oldVal, __) {
+    if (!this.#initialized) return;
 
     this.#readAttributes();
     this.#updateRoundsUI();
@@ -553,7 +558,7 @@ class PomodoroTimer extends HTMLElement {
   #updatePauseButton() {
     switch (this.#state) {
       case State.RUNNING:
-        this.#pauseBtn.textContent = '\u23F8\uFE0E';
+        this.#pauseBtn.textContent = '⏸︎';
         this.#pauseBtn.title = 'Pause timer';
         this.#pauseBtn.setAttribute('aria-label', 'Pause timer');
         break;
@@ -567,7 +572,7 @@ class PomodoroTimer extends HTMLElement {
       case State.FINISHED: {
         // Show what the NEXT phase will be
         const nextLabel = this.#nextPhaseLabel();
-        this.#pauseBtn.textContent = '\u23ED\uFE0E';
+        this.#pauseBtn.textContent = '⏭︎';
         this.#pauseBtn.title = `Move to ${nextLabel}`;
         this.#pauseBtn.setAttribute('aria-label', `Move to ${nextLabel}`);
         break;
@@ -638,7 +643,7 @@ class PomodoroTimer extends HTMLElement {
     }
     if (this.#shortBreakLabel) {
       this.#shortBreakLabel.textContent = single
-        ? 'Short break (seconds) \u2014 not used with 1 round'
+        ? 'Short break (seconds) - not used with 1 round'
         : 'Short break (seconds)';
     }
     if (this.#longBreakLabel) {
