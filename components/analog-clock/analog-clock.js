@@ -1,5 +1,5 @@
 import { loadWidgetAsShadow } from '../shared/widget.js';
-import { toLocalISO, currentOffset, buildTimezoneSelectOptions } from '../shared/timezones.js';
+import { toLocalISO, currentOffset, buildTimezoneSelectOptions, getTimeParts } from '../shared/timezones.js';
 
 class AnalogClock extends HTMLElement {
   #intervalId = null;
@@ -49,40 +49,8 @@ class AnalogClock extends HTMLElement {
     this.#updateText();
   }
 
-  #timeParts() {
-    const now = new Date();
-    const tz = this.timezone;
-
-    if (!tz) {
-      return {
-        h: now.getHours(),
-        m: now.getMinutes(),
-        s: now.getSeconds(),
-        ms: now.getMilliseconds(),
-      };
-    }
-
-    const parts = new Intl.DateTimeFormat('en-US', {
-      timeZone: tz,
-      hour: 'numeric',
-      minute: 'numeric',
-      second: 'numeric',
-      hour12: false,
-      fractionalSecondDigits: 3,
-    })
-      .formatToParts(now)
-      .reduce((acc, p) => ((acc[p.type] = p.value), acc), {});
-
-    return {
-      h: +parts.hour,
-      m: +parts.minute,
-      s: +parts.second,
-      ms: +(parts.fractionalSecond || 0),
-    };
-  }
-
   #initHands() {
-    const { h, m, s, ms } = this.#timeParts();
+    const { h, m, s, ms } = getTimeParts(new Date(), this.timezone);
 
     const preciseSeconds = s + ms / 1000;
     const preciseMinutes = m + preciseSeconds / 60;

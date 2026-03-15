@@ -11,7 +11,7 @@ class PomodoroTimer extends HTMLElement {
   #phase = Phase.WORK;
   #phaseDuration;
   #remaining;
-  #C = 0; // circumference
+  #R = 40; // ring radius
   #totalDuration = 0;
   #bgGroup; #fgGroup; #timeEl; #phaseLabel; #pauseBtn; #resetBtn;
   #sbInput = null; #sbLabel = null; #lbLabel = null;
@@ -47,12 +47,11 @@ class PomodoroTimer extends HTMLElement {
       this.#timeEl = this.shadowRoot.getElementById('timer-text');
       this.#phaseLabel = this.shadowRoot.getElementById('phase-label');
       this.#pauseBtn = registerButton(this.shadowRoot, 'pause-btn', () => this.#toggle());
-      this.#resetBtn = registerButton(this.shadowRoot, 'reset-btn', () => this.#fullReset());
+      this.#resetBtn = registerButton(this.shadowRoot, 'reset-btn', () => this.reset());
 
       this.#initSettings();
     }
 
-    this.#C = 2 * Math.PI * 40;
     this.#readAttrs();
     this.#updateRoundsUI();
     this.#buildSegments();
@@ -106,7 +105,7 @@ class PomodoroTimer extends HTMLElement {
     if (!this.#ready) return;
     this.#readAttrs();
     this.#updateRoundsUI();
-    this.#fullReset();
+    this.reset();
   }
 
   #readAttrs() {
@@ -122,30 +121,39 @@ class PomodoroTimer extends HTMLElement {
     this.#bgGroup.innerHTML = '';
     this.#fgGroup.innerHTML = '';
     this.#totalDuration = this.#rounds * this.#work + (this.#rounds - 1) * this.#shortBreak + this.#longBreak;
-    let cumArc = 0;
+    const TWO_PI = 2 * Math.PI;
+    let angle = 0;
     for (let r = 1; r <= this.#rounds; r++) {
-      const wArc = (this.#work / this.#totalDuration) * this.#C;
-      cumArc += wArc;
-      this.#addPair(Phase.WORK, wArc, cumArc);
+      const wAngle = (this.#work / this.#totalDuration) * TWO_PI;
+      this.#addPair(Phase.WORK, angle, angle + wAngle);
+      angle += wAngle;
       const isLast = r === this.#rounds;
       const bPhase = isLast ? Phase.LONG_BREAK : Phase.SHORT_BREAK;
-      const bArc = ((isLast ? this.#longBreak : this.#shortBreak) / this.#totalDuration) * this.#C;
-      cumArc += bArc;
-      this.#addPair(bPhase, bArc, cumArc);
+      const bAngle = ((isLast ? this.#longBreak : this.#shortBreak) / this.#totalDuration) * TWO_PI;
+      this.#addPair(bPhase, angle, angle + bAngle);
+      angle += bAngle;
     }
   }
 
-  #addPair(phase, arc, offset) {
-    const da = `${arc.toFixed(4)} ${(this.#C - arc).toFixed(4)}`;
-    const off = offset.toFixed(4);
+  #addPair(phase, fromAngle, toAngle) {
+    const r = this.#R;
+    const cx = 50, cy = 50;
+    // Negate and offset by -π/2 so angle 0 = 12 o'clock
+    const [s, e] = [fromAngle, toAngle].map(a => -a - Math.PI / 2);
+    const [x1, x2] = [s, e].map(a => (cx + r * Math.cos(a)).toFixed(4));
+    const [y1, y2] = [s, e].map(a => (cy + r * Math.sin(a)).toFixed(4));
+    const large = (toAngle - fromAngle) > Math.PI ? 1 : 0;
+    const arc = `M${x2} ${y2}A${r} ${r} 0 ${large} 1 ${x1} ${y1}`;
+
+    const len = this.#R * (toAngle - fromAngle);
     for (const grp of [this.#bgGroup, this.#fgGroup]) {
-      const c = document.createElementNS(SVG_NS, 'circle');
-      c.setAttribute('cx', '50'); c.setAttribute('cy', '50'); c.setAttribute('r', '40');
-      c.dataset.phase = phase;
-      c.dataset.arc = arc.toFixed(4);
-      c.style.strokeDasharray = da;
-      c.style.strokeDashoffset = off;
-      grp.appendChild(c);
+      const p = document.createElementNS(SVG_NS, 'path');
+      p.setAttribute('d', arc);
+      p.dataset.phase = phase;
+      p.dataset.len = len.toFixed(4);
+      p.style.strokeDasharray = len.toFixed(4);
+      p.style.strokeDashoffset = '0';
+      grp.appendChild(p);
     }
   }
 
@@ -225,7 +233,7 @@ class PomodoroTimer extends HTMLElement {
     if (elapsed > 0) this.setAttribute('elapsed', String(elapsed));
   }
 
-  #fullReset() {
+  reset() {
     this.#tick.stop();
     this.#startEpoch = null;
     this.removeAttribute('start-time');
@@ -254,39 +262,28 @@ class PomodoroTimer extends HTMLElement {
   }
 
   #updateBtn() {
-    switch (this.#state) {
-      case State.RUNNING:
-        this.#pauseBtn.textContent = '⏸︎';
-        this.#pauseBtn.title = 'Pause timer';
-        this.#pauseBtn.setAttribute('aria-label', 'Pause timer');
-        break;
-      case State.PAUSED: {
-        this.#pauseBtn.textContent = '\u25B6\uFE0E';
-        const l = this.#phaseDisplayLabel();
-        this.#pauseBtn.title = `Start ${l}`;
-        this.#pauseBtn.setAttribute('aria-label', `Start ${l}`);
-        break;
-      }
-      case State.FINISHED: {
-        const nl = this.#nextPhaseLabel();
-        this.#pauseBtn.textContent = '⏭︎';
-        this.#pauseBtn.title = `Move to ${nl}`;
-        this.#pauseBtn.setAttribute('aria-label', `Move to ${nl}`);
-        break;
-      }
-    }
+    const [icon, label] = {
+      default: ['▶︎', 'Start'],
+      [State.RUNNING]: ['⏸︎', 'Pause timer'],
+      [State.PAUSED]: ['▶︎', `Start ${this.#labelFor(this.#phase)}`],
+      [State.FINISHED]: ['⏭︎', `Move to ${this.#nextPhaseLabel()}`],
+    }[this.#state ?? 'default'];
+    this.#pauseBtn.textContent = icon;
+    this.#pauseBtn.title = label;
+    this.#pauseBtn.setAttribute('aria-label', label);
   }
 
-  #phaseDisplayLabel() {
-    if (this.#phase === Phase.WORK) return 'work';
+
+  #labelFor(phase) {
+    if (phase === Phase.WORK) return 'work';
     if (this.#single) return 'break';
-    return this.#phase === Phase.SHORT_BREAK ? 'short break' : 'long break';
+    return phase === Phase.SHORT_BREAK ? 'short break' : 'long break';
   }
 
   #nextPhaseLabel() {
     if (this.#phase === Phase.WORK) {
-      if (this.#single) return 'break';
-      return this.#round >= this.#rounds ? 'long break' : 'short break';
+      const nextPhase = this.#round >= this.#rounds ? Phase.LONG_BREAK : Phase.SHORT_BREAK;
+      return this.#labelFor(nextPhase);
     }
     return 'work';
   }
@@ -350,22 +347,14 @@ class PomodoroTimer extends HTMLElement {
     let segEnd = 0;
     for (let i = 0; i < fgs.length; i++) {
       const fg = fgs[i];
-      const arc = parseFloat(fg.dataset.arc);
+      const len = parseFloat(fg.dataset.len);
+      const segDur = (len / (2 * Math.PI * this.#R)) * this.#totalDuration;
       const segStart = segEnd;
-      segEnd += (arc / this.#C) * this.#totalDuration;
+      segEnd += segDur;
       const sc = consumed - segStart;
-      const segLen = segEnd - segStart;
-      if (sc >= segLen) {
-        fg.style.strokeDasharray = `0 ${this.#C.toFixed(4)}`;
-        fg.style.transitionDuration = '0s';
-      } else if (sc > 0) {
-        const vis = arc * (1 - sc / segLen);
-        fg.style.strokeDasharray = `${vis.toFixed(4)} ${(this.#C - vis).toFixed(4)}`;
-        fg.style.transitionDuration = tickDuration;
-      } else {
-        fg.style.strokeDasharray = `${arc.toFixed(4)} ${(this.#C - arc).toFixed(4)}`;
-        fg.style.transitionDuration = '0s';
-      }
+      const fraction = Math.max(0, Math.min(1, sc / segDur));
+      fg.style.strokeDashoffset = (len * fraction).toFixed(4);
+      fg.style.transitionDuration = (sc > 0 && fraction < 1) ? tickDuration : '0s';
     }
   }
 
@@ -373,20 +362,15 @@ class PomodoroTimer extends HTMLElement {
 
   #initSettings() {
     const wi = this.shadowRoot.getElementById('setting-work');
-    const sbi = this.shadowRoot.getElementById('setting-short-break');
-    const lbi = this.shadowRoot.getElementById('setting-long-break');
-    const ri = this.shadowRoot.getElementById('setting-rounds');
-    const customChip = this.shadowRoot.getElementById('custom-chip');
-    const customFields = this.shadowRoot.querySelector('.custom-fields');
-    const presets = this.shadowRoot.querySelectorAll('.preset-chip[data-work]');
-
-    this.#sbInput = sbi;
-    this.#sbLabel = this.shadowRoot.getElementById('short-break-label');
-    this.#lbLabel = this.shadowRoot.getElementById('long-break-label');
-
     if (wi) wi.value = this.getAttribute('work') ?? String(DEFAULTS.work);
+
+    const sbi = this.shadowRoot.getElementById('setting-short-break');
     if (sbi) sbi.value = this.getAttribute('short-break') ?? String(DEFAULTS.shortBreak);
+
+    const lbi = this.shadowRoot.getElementById('setting-long-break');
     if (lbi) lbi.value = this.getAttribute('long-break') ?? String(DEFAULTS.longBreak);
+
+    const ri = this.shadowRoot.getElementById('setting-rounds');
     if (ri) ri.value = this.getAttribute('rounds') ?? String(DEFAULTS.rounds);
 
     const apply = () => {
@@ -404,6 +388,14 @@ class PomodoroTimer extends HTMLElement {
     sbi?.addEventListener('input', apply);
     lbi?.addEventListener('input', apply);
     ri?.addEventListener('input', apply);
+
+    const customChip = this.shadowRoot.getElementById('custom-chip');
+    const customFields = this.shadowRoot.querySelector('.custom-fields');
+    const presets = this.shadowRoot.querySelectorAll('.preset-chip[data-work]');
+
+    this.#sbInput = sbi;
+    this.#sbLabel = this.shadowRoot.getElementById('short-break-label');
+    this.#lbLabel = this.shadowRoot.getElementById('long-break-label');
 
     this.#syncPresets(presets, customChip, customFields);
 

@@ -117,6 +117,34 @@ export function toLocalISO(now, timeZone) {
 }
 
 /**
+ * Extract hour, minute, second, and millisecond parts for a given Date and timezone.
+ * @param {Date} date
+ * @param {string} [timezone] IANA timezone (omit for local).
+ * @returns {{ h: number, m: number, s: number, ms: number }} 24-hour time parts
+ */
+export function getTimeParts(date, timezone) {
+  const opts = {
+    hour: 'numeric',
+    minute: 'numeric',
+    second: 'numeric',
+    hour12: false,
+    fractionalSecondDigits: 3,
+  };
+  if (timezone) opts.timeZone = timezone;
+
+  const parts = new Intl.DateTimeFormat('en-US', opts)
+    .formatToParts(date)
+    .reduce((acc, p) => ((acc[p.type] = p.value), acc), {});
+
+  return {
+    h: +parts.hour,
+    m: +parts.minute,
+    s: +parts.second,
+    ms: +(parts.fractionalSecond || 0),
+  };
+}
+
+/**
  * Build an ordered array of timezone select options for the current moment.
  *
  * Groups curated locations by their current UTC offset and returns one entry

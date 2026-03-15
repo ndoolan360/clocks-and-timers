@@ -6,50 +6,48 @@
   color: color-mix(in srgb, var(--foreground, #DDD) 70%, transparent);
 }
 
-#segments-fg.segments>circle {
-  transition-property: stroke-dasharray;
+#segments-fg.segments>path {
+  transition-property: stroke-dashoffset;
   transition-timing-function: linear;
 }
 
-#segments-bg.segments>circle {
+#segments-bg.segments>path {
   opacity: 0.2;
 }
 
-.segments>circle {
-  fill: transparent;
+.segments>path {
+  fill: none;
   stroke-width: 20px;
   stroke-linecap: butt;
-  transform: rotate(-90deg);
-  transform-origin: center center;
 }
 
-.segments>circle[data-phase="work"] {
+.segments>path[data-phase="work"] {
   stroke: var(--progress-1-colour, royalblue);
 }
 
-.segments>circle[data-phase="short-break"] {
+.segments>path[data-phase="short-break"] {
   stroke: var(--progress-2-colour, lightseagreen);
 }
 
-.segments>circle[data-phase="long-break"] {
+.segments>path[data-phase="long-break"] {
   stroke: var(--progress-3-colour, mediumseagreen);
 }
 
-:host([state="finished"]) .segment-fg {
+:host([state="finished"]) #segments-fg>path {
   stroke: transparent !important;
 }
 
-:host([state="finished"]) .segment-bg[data-phase="work"] {
+:host([state="finished"]) #segments-bg>path[data-phase="work"] {
   stroke: color-mix(in srgb, var(--progress-done-colour, crimson) 20%, transparent) !important;
   opacity: 1;
 }
 
-:host([state="finished"]) .segment-bg[data-phase="short-break"] {
+:host([state="finished"]) #segments-bg>path[data-phase="short-break"] {
   stroke: color-mix(in srgb, var(--progress-done-colour, crimson) 30%, transparent) !important;
   opacity: 1;
 }
 
-:host([state="finished"]) .segment-bg[data-phase="long-break"] {
+:host([state="finished"]) #segments-bg>path[data-phase="long-break"] {
   stroke: color-mix(in srgb, var(--progress-done-colour, crimson) 40%, transparent) !important;
   opacity: 1;
 }

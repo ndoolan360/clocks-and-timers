@@ -28,33 +28,27 @@ class StopwatchClock extends HTMLElement {
       this.#secondHand = this.shadowRoot.getElementById('second-hand');
       this.#minuteHand = this.shadowRoot.getElementById('minute-hand');
       this.#timeEl = this.shadowRoot.getElementById('clock-text');
-      this.#pauseBtn = this.shadowRoot.getElementById('pause-btn');
       this.#placeNumbers('main-num', 12, 5, 60, 50, 40, 31);
       this.#placeNumbers('minute-num', 10, 3, 30, 50, 25, 6.5);
+
       this.#pauseBtn = registerButton(this.shadowRoot, 'pause-btn', () => this.#toggle());
-      registerButton(this.shadowRoot, 'reset-btn', () => this.#reset());
+      registerButton(this.shadowRoot, 'reset-btn', () => this.reset());
     }
 
-    if (this.#startEpoch !== null) {
+    const st = this.getAttribute('start-time');
+    const el = this.getAttribute('elapsed');
+    if (this.#startEpoch !== null || st) {
+      if (!this.#startEpoch) this.#startEpoch = Number(st);
       this.#elapsed = Date.now() - this.#startEpoch;
       this.#startInterval();
       this.#state = 'running';
+    } else if (el) {
+      this.#elapsed = Number(el);
+      this.#state = 'paused';
     } else {
-      const st = this.getAttribute('start-time');
-      const el = this.getAttribute('elapsed');
-      if (st) {
-        this.#startEpoch = Number(st);
-        this.#elapsed = Date.now() - this.#startEpoch;
-        this.#startInterval();
-        this.#state = 'running';
-      } else if (el) {
-        this.#elapsed = Number(el);
-        this.#state = 'paused';
-      } else {
-        this.#state = 'paused';
-      }
-      this.#initHands();
+      this.#state = 'paused';
     }
+    this.#initHands();
     this.#render();
   }
 
@@ -117,7 +111,7 @@ class StopwatchClock extends HTMLElement {
     }
   }
 
-  #reset() {
+  reset() {
     this.#stopInterval();
     this.#elapsed = 0;
     this.#startEpoch = null;
@@ -153,16 +147,14 @@ class StopwatchClock extends HTMLElement {
   }
 
   #updateBtn() {
-    if (this.#state === 'running') {
-      this.#pauseBtn.textContent = '⏸︎';
-      this.#pauseBtn.title = 'Pause stopwatch';
-      this.#pauseBtn.setAttribute('aria-label', 'Pause stopwatch');
-    } else {
-      this.#pauseBtn.textContent = '▶︎';
-      this.#pauseBtn.title = 'Start stopwatch';
-      this.#pauseBtn.setAttribute('aria-label', 'Start stopwatch');
-    }
+    const [icon, label] = this.#state === 'running'
+      ? ['⏸︎', 'Pause stopwatch']
+      : ['▶︎', 'Start stopwatch'];
+    this.#pauseBtn.textContent = icon;
+    this.#pauseBtn.title = label;
+    this.#pauseBtn.setAttribute('aria-label', label);
   }
+
 }
 
 customElements.define('stopwatch-clock', StopwatchClock);
