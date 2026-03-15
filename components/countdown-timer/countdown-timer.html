@@ -3,7 +3,7 @@
     <fieldset>
       <legend class="sr-only">Timer Controls</legend>
       <button id="settings-btn" type="button" title="Timer settings" aria-label="Timer settings" popovertarget="settings-popover">⚙️</button>
-      <button id="pause-btn" type="button" title="Pause timer" aria-label="Pause timer" disabled>⏸︎</button>
+      <button id="pause-btn" type="button" title="Start timer" aria-label="Start timer" disabled>▶︎</button>
       <button id="remove-btn" type="button" title="Remove timer" aria-label="Remove timer" disabled>🗑️</button>
     </fieldset>
   </form>
@@ -13,15 +13,15 @@
       <div class="label" role="group" aria-label="Preset durations">
         <span>Duration</span>
         <div class="preset-chips" role="group" aria-label="Preset durations">
-          <button type="button" class="preset-chip" popovertarget="settings-popover" popovertargetaction="hide" data-duration="60">1m</button>
-          <button type="button" class="preset-chip" popovertarget="settings-popover" popovertargetaction="hide" data-duration="120">2m</button>
-          <button type="button" class="preset-chip" popovertarget="settings-popover" popovertargetaction="hide" data-duration="300">5m</button>
-          <button type="button" class="preset-chip" popovertarget="settings-popover" popovertargetaction="hide" data-duration="600">10m</button>
-          <button type="button" class="preset-chip" popovertarget="settings-popover" popovertargetaction="hide" data-duration="900">15m</button>
-          <button type="button" class="preset-chip" popovertarget="settings-popover" popovertargetaction="hide" data-duration="1800">30m</button>
-          <button type="button" class="preset-chip" popovertarget="settings-popover" popovertargetaction="hide" data-duration="3600">1h</button>
-          <button type="button" class="preset-chip" popovertarget="settings-popover" popovertargetaction="hide" data-duration="7200">2h</button>
-          <button type="button" class="preset-chip" id="custom-chip">Custom</button>
+          <button type="button" data-duration="60" popovertarget="settings-popover" popovertargetaction="hide">1m</button>
+          <button type="button" data-duration="120" popovertarget="settings-popover" popovertargetaction="hide">2m</button>
+          <button type="button" data-duration="300" popovertarget="settings-popover" popovertargetaction="hide">5m</button>
+          <button type="button" data-duration="600" popovertarget="settings-popover" popovertargetaction="hide">10m</button>
+          <button type="button" data-duration="900" popovertarget="settings-popover" popovertargetaction="hide">15m</button>
+          <button type="button" data-duration="1800" popovertarget="settings-popover" popovertargetaction="hide">30m</button>
+          <button type="button" data-duration="3600" popovertarget="settings-popover" popovertargetaction="hide">1h</button>
+          <button type="button" data-duration="7200" popovertarget="settings-popover" popovertargetaction="hide">2h</button>
+          <button type="button" id="custom-chip">Custom</button>
         </div>
       </div>
       <div class="custom-fields" hidden>

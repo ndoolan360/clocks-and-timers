@@ -1,85 +1,49 @@
-import {
-  State,
-  isFineGrained,
-  formatTime,
-  setPulseSyncDelay,
-  clearPulseSyncDelay,
-  TickEngine,
-} from '../timer.js';
-import { loadComponentFromFiles } from "../load.js";
+import { loadWidgetAsShadow, registerButton } from '../shared/widget.js';
+import { State, isFineGrained, formatTime, setPulseSyncDelay, clearPulseSyncDelay, TickEngine } from '../shared/timer.js';
 
 class CountdownTimer extends HTMLElement {
-  /** @type {number} Total duration in milliseconds */
-  #totalDuration;
-  /** @type {number} Time remaining in milliseconds */
-  #timeRemaining;
-  /** @type {SVGCircleElement} */
-  #progressRingEl;
-  /** @type {HTMLTimeElement} */
-  #timeEl;
-  /** @type {HTMLButtonElement} */
+  #duration;      // total duration in ms
+  #remaining;     // time remaining in ms
+  #ring;          // #progress-ring element
+  #timeEl;        // #timer-text element
   #pauseBtn;
-  /** @type {number | null} Wall-clock epoch (ms) when the timer effectively started. */
   #startEpoch = null;
-  /** @type {TickEngine} */
-  #tickEngine = new TickEngine(() => this.#tick());
+  #tick = new TickEngine(() => this.#onTick());
 
   static observedAttributes = ['duration'];
 
-  get #state() {
-    return this.getAttribute('state');
-  }
-
-  set #state(value) {
-    this.setAttribute('state', value);
-    this.#updatePauseButton();
-  }
+  get #state() { return this.getAttribute('state'); }
+  set #state(v) { this.setAttribute('state', v); this.#updateBtn(); }
 
   async connectedCallback() {
-    const { template, sheets } = await loadComponentFromFiles(
-      new URL('./countdown-timer.html', import.meta.url),
-      new URL('../component.css', import.meta.url),
-      new URL('../timer.css', import.meta.url),
-      new URL('./countdown-timer.css', import.meta.url)
-    );
-
     if (!this.shadowRoot) {
-      this.attachShadow({ mode: 'open' });
-      this.shadowRoot.adoptedStyleSheets = sheets;
-      this.shadowRoot.appendChild(template.content.cloneNode(true));
-      this.#progressRingEl = this.shadowRoot.getElementById('progress-ring');
-      this.#timeEl = this.shadowRoot.getElementById('timer-text');
-      this.#pauseBtn = this.shadowRoot.getElementById('pause-btn');
-
-      this.#pauseBtn.addEventListener('click', () => this.#togglePause());
-      this.#pauseBtn.disabled = false;
-
-      const removeBtn = this.shadowRoot.getElementById("remove-btn");
-      removeBtn.addEventListener('click', () =>
-        removeBtn.dispatchEvent(new CustomEvent("widget-removed", { bubbles: true, composed: true }))
+      await loadWidgetAsShadow(
+        this,
+        new URL('./countdown-timer.html', import.meta.url),
+        new URL('../shared/component.css', import.meta.url),
+        new URL('../shared/timer.css', import.meta.url),
+        new URL('./countdown-timer.css', import.meta.url),
       );
-      removeBtn.disabled = false;
+
+      this.#ring = this.shadowRoot.getElementById('progress-ring');
+      this.#timeEl = this.shadowRoot.getElementById('timer-text');
+      this.#pauseBtn = registerButton(this.shadowRoot, 'pause-btn', () => this.#toggle());
 
       this.#initSettings();
     }
 
-    this.#totalDuration = parseInt(this.getAttribute('duration') ?? '300', 10) * 1000;
-    this.#timeRemaining = this.#totalDuration;
+    this.#duration = parseInt(this.getAttribute('duration') ?? '300', 10) * 1000;
+    this.#remaining = this.#duration;
+    this.#ring.style.setProperty('--circumference',
+      (2 * Math.PI * this.#ring.r.baseVal.value).toFixed(4) + 'px');
 
-    this.#progressRingEl.style.setProperty(
-      '--circumference',
-      (2 * Math.PI * this.#progressRingEl.r.baseVal.value).toFixed(4) + "px",
-    );
-
-    if (this.#startEpoch !== null) {
-      // Already running — skip restoration.
-    } else {
+    if (this.#startEpoch === null) {
       const startTime = this.getAttribute('start-time');
       const elapsed = this.getAttribute('elapsed');
       if (startTime) {
         this.#startEpoch = Number(startTime);
-        this.#timeRemaining = Math.max(0, this.#totalDuration - (Date.now() - this.#startEpoch));
-        if (this.#timeRemaining <= 0) {
+        this.#remaining = Math.max(0, this.#duration - (Date.now() - this.#startEpoch));
+        if (this.#remaining <= 0) {
           setPulseSyncDelay(this);
           this.#state = State.FINISHED;
           this.dispatchEvent(new CustomEvent('timer-finished', { bubbles: true }));
@@ -87,193 +51,84 @@ class CountdownTimer extends HTMLElement {
           this.#state = State.RUNNING;
         }
       } else if (elapsed) {
-        this.#timeRemaining = Math.max(0, this.#totalDuration - Number(elapsed));
+        this.#remaining = Math.max(0, this.#duration - Number(elapsed));
         this.#state = State.PAUSED;
       } else {
         this.#state = State.PAUSED;
       }
       this.#render();
-
-      if (this.#state === State.RUNNING) {
-        this.start();
-      }
+      if (this.#state === State.RUNNING) this.start();
     }
   }
 
-  disconnectedCallback() {
-    this.#tickEngine.stop();
-  }
+  disconnectedCallback() { this.#tick.stop(); }
 
-  /** Re-sync display to the wall clock. */
-  sync() {
-    if (this.#startEpoch === null) return;
-    this.#tick();
-  }
+  sync() { if (this.#startEpoch !== null) this.#onTick(); }
 
-  attributeChangedCallback(name, oldVal, newVal) {
-    if (!this.shadowRoot) return;
-
-    if (name === 'duration' && oldVal !== null) {
-      this.#totalDuration = parseInt(newVal ?? '300', 10) * 1000;
-      const durationInput = this.shadowRoot.getElementById('setting-duration');
-      if (durationInput) durationInput.value = newVal;
+  attributeChangedCallback(name, oldVal) {
+    if (!this.shadowRoot || oldVal === null) return;
+    if (name === 'duration') {
+      this.#duration = parseInt(this.getAttribute('duration') ?? '300', 10) * 1000;
+      const input = this.shadowRoot.getElementById('setting-duration');
+      if (input) input.value = this.getAttribute('duration');
       this.reset();
     }
   }
 
-  #initSettings() {
-    const durationInput = this.shadowRoot.getElementById('setting-duration');
-    const customChip = this.shadowRoot.getElementById('custom-chip');
-    const customFields = this.shadowRoot.querySelector('.custom-fields');
-    const presetChips = this.shadowRoot.querySelectorAll('.preset-chip[data-duration]');
-
-    if (durationInput) {
-      durationInput.value = this.getAttribute('duration') ?? '300';
-      durationInput.addEventListener('input', (e) => {
-        const val = parseInt(e.target.value, 10);
-        if (val > 0) {
-          this.setAttribute('duration', String(val));
-        }
-      });
-    }
-
-    if (presetChips.length) {
-      const currentDuration = this.getAttribute('duration') ?? '300';
-      this.#updateActivePreset(presetChips, customChip, customFields, currentDuration);
-
-      for (const chip of presetChips) {
-        chip.addEventListener('click', () => {
-          const val = chip.dataset.duration;
-          this.setAttribute('duration', val);
-          if (durationInput) durationInput.value = val;
-          this.#updateActivePreset(presetChips, customChip, customFields, val);
-        });
-      }
-    }
-
-    if (customChip) {
-      customChip.addEventListener('click', () => {
-        this.#showCustomDuration(presetChips, customChip, customFields);
-        durationInput?.focus();
-      });
-    }
-  }
-
-  /**
-   * Highlight the preset chip matching the current duration, or activate
-   * the Custom chip if no preset matches.
-   * @param {NodeListOf<HTMLButtonElement>} presetChips
-   * @param {HTMLButtonElement | null} customChip
-   * @param {HTMLElement | null} customFields
-   * @param {string} duration  Duration in seconds.
-   */
-  #updateActivePreset(presetChips, customChip, customFields, duration) {
-    let matched = false;
-    for (const chip of presetChips) {
-      const match = chip.dataset.duration === duration;
-      chip.setAttribute('aria-pressed', String(match));
-      if (match) matched = true;
-    }
-
-    if (matched) {
-      // A preset matched — hide the custom input.
-      if (customChip) customChip.setAttribute('aria-pressed', 'false');
-      if (customFields) customFields.hidden = true;
-    } else {
-      // No preset matched — show the custom input.
-      this.#showCustomDuration(presetChips, customChip, customFields);
-    }
-  }
-
-  /**
-   * Activate the Custom chip and reveal the duration input.
-   * @param {NodeListOf<HTMLButtonElement>} presetChips
-   * @param {HTMLButtonElement | null} customChip
-   * @param {HTMLElement | null} customFields
-   */
-  #showCustomDuration(presetChips, customChip, customFields) {
-    for (const chip of presetChips) {
-      chip.setAttribute('aria-pressed', 'false');
-    }
-    if (customChip) customChip.setAttribute('aria-pressed', 'true');
-    if (customFields) customFields.hidden = false;
-  }
-
   start() {
-    if (this.#tickEngine.running) return;
-    this.#tickEngine.start(isFineGrained(this.#timeRemaining));
+    if (this.#tick.running) return;
+    this.#tick.start(isFineGrained(this.#remaining));
     this.#state = State.RUNNING;
     this.dispatchEvent(new CustomEvent('timer-started', { bubbles: true }));
-    this.#startEpoch = Date.now() - (this.#totalDuration - this.#timeRemaining);
+    this.#startEpoch = Date.now() - (this.#duration - this.#remaining);
     this.setAttribute('start-time', String(this.#startEpoch));
     this.removeAttribute('elapsed');
   }
 
   pause() {
-    this.#tickEngine.stop();
+    this.#tick.stop();
     this.#state = State.PAUSED;
     this.dispatchEvent(new CustomEvent('timer-paused', { bubbles: true }));
-    const elapsed = this.#totalDuration - this.#timeRemaining;
+    const elapsed = this.#duration - this.#remaining;
     this.#startEpoch = null;
     this.removeAttribute('start-time');
-    if (elapsed > 0) {
-      this.setAttribute('elapsed', String(elapsed));
-    }
+    if (elapsed > 0) this.setAttribute('elapsed', String(elapsed));
   }
 
   reset() {
     this.pause();
     clearPulseSyncDelay(this);
-    this.#timeRemaining = this.#totalDuration;
+    this.#remaining = this.#duration;
     this.removeAttribute('elapsed');
     this.#render();
   }
 
-  #togglePause() {
-    if (this.#state === State.FINISHED) {
-      this.reset();
-    } else if (this.#state === State.RUNNING) {
-      this.pause();
-    } else {
-      this.start();
-    }
+  #toggle() {
+    if (this.#state === State.FINISHED) this.reset();
+    else if (this.#state === State.RUNNING) this.pause();
+    else this.start();
   }
 
-  #updatePauseButton() {
-    switch (this.#state) {
-      case State.RUNNING:
-        this.#pauseBtn.textContent = '⏸︎';
-        this.#pauseBtn.title = 'Pause timer';
-        this.#pauseBtn.setAttribute('aria-label', 'Pause timer');
-        break;
-      case State.PAUSED:
-        this.#pauseBtn.textContent = '▶︎';
-        this.#pauseBtn.title = 'Start timer';
-        this.#pauseBtn.setAttribute('aria-label', 'Start timer');
-        break;
-      case State.FINISHED:
-        this.#pauseBtn.textContent = '↻';
-        this.#pauseBtn.title = 'Restart timer';
-        this.#pauseBtn.setAttribute('aria-label', 'Restart timer');
-        break;
-    }
+  #updateBtn() {
+    const labels = {
+      [State.RUNNING]: ['⏸︎', 'Pause timer'],
+      [State.PAUSED]: ['▶︎', 'Start timer'],
+      [State.FINISHED]: ['↻', 'Restart timer'],
+    };
+    const [icon, label] = labels[this.#state] || labels[State.PAUSED];
+    this.#pauseBtn.textContent = icon;
+    this.#pauseBtn.title = label;
+    this.#pauseBtn.setAttribute('aria-label', label);
   }
 
-  #tick() {
-    const wasFineGrained = isFineGrained(this.#timeRemaining);
-    if (this.#startEpoch !== null) {
-      this.#timeRemaining = Math.max(0, this.#totalDuration - (Date.now() - this.#startEpoch));
-    }
-
-    // Switch interval speed when crossing the 60-second boundary.
-    if (!wasFineGrained && isFineGrained(this.#timeRemaining)) {
-      this.#tickEngine.start(true);
-    }
-
+  #onTick() {
+    const wasFine = isFineGrained(this.#remaining);
+    if (this.#startEpoch !== null)
+      this.#remaining = Math.max(0, this.#duration - (Date.now() - this.#startEpoch));
+    if (!wasFine && isFineGrained(this.#remaining)) this.#tick.start(true);
     this.#render();
-
-    if (this.#timeRemaining <= 0) {
-      this.#tickEngine.stop();
+    if (this.#remaining <= 0) {
+      this.#tick.stop();
       this.#startEpoch = null;
       this.removeAttribute('start-time');
       this.removeAttribute('elapsed');
@@ -285,13 +140,65 @@ class CountdownTimer extends HTMLElement {
   }
 
   #render() {
-    const progress = this.#timeRemaining / this.#totalDuration;
-    const { text, datetime, tickDuration } = formatTime(this.#timeRemaining);
-
-    this.#progressRingEl.style.setProperty('--progress', progress);
-    this.#progressRingEl.style.setProperty('--tick-duration', tickDuration);
+    const { text, datetime, tickDuration } = formatTime(this.#remaining);
+    this.#ring.style.setProperty('--progress', this.#remaining / this.#duration);
+    this.#ring.style.setProperty('--tick-duration', tickDuration);
     this.#timeEl.textContent = text;
     this.#timeEl.setAttribute('datetime', datetime);
+  }
+
+  #initSettings() {
+    const durationInput = this.shadowRoot.getElementById('setting-duration');
+    const customChip = this.shadowRoot.getElementById('custom-chip');
+    const customFields = this.shadowRoot.querySelector('.custom-fields');
+    const presetChips = this.shadowRoot.querySelectorAll('.preset-chip[data-duration]');
+
+    if (durationInput) {
+      durationInput.value = this.getAttribute('duration') ?? '300';
+      durationInput.addEventListener('input', e => {
+        const val = parseInt(e.target.value, 10);
+        if (val > 0) this.setAttribute('duration', String(val));
+      });
+    }
+
+    if (presetChips.length) {
+      const cur = this.getAttribute('duration') ?? '300';
+      this.#syncPresets(presetChips, customChip, customFields, cur);
+      for (const chip of presetChips) {
+        chip.addEventListener('click', () => {
+          const val = chip.dataset.duration;
+          this.setAttribute('duration', val);
+          if (durationInput) durationInput.value = val;
+          this.#syncPresets(presetChips, customChip, customFields, val);
+        });
+      }
+    }
+
+    customChip?.addEventListener('click', () => {
+      this.#showCustom(presetChips, customChip, customFields);
+      durationInput?.focus();
+    });
+  }
+
+  #syncPresets(chips, customChip, fields, duration) {
+    let matched = false;
+    for (const c of chips) {
+      const m = c.dataset.duration === duration;
+      c.setAttribute('aria-pressed', String(m));
+      if (m) matched = true;
+    }
+    if (matched) {
+      customChip?.setAttribute('aria-pressed', 'false');
+      if (fields) fields.hidden = true;
+    } else {
+      this.#showCustom(chips, customChip, fields);
+    }
+  }
+
+  #showCustom(chips, customChip, fields) {
+    for (const c of chips) c.setAttribute('aria-pressed', 'false');
+    customChip?.setAttribute('aria-pressed', 'true');
+    if (fields) fields.hidden = false;
   }
 }
 

@@ -1,181 +1,91 @@
-import {
-  State,
-  isFineGrained,
-  formatTime,
-  setPulseSyncDelay,
-  clearPulseSyncDelay,
-  TickEngine,
-} from '../timer.js';
-import { loadComponentFromFiles } from "../load.js";
+import { loadWidgetAsShadow, registerButton } from '../shared/widget.js';
+import { State, isFineGrained, formatTime, setPulseSyncDelay, clearPulseSyncDelay, TickEngine } from '../shared/timer.js';
 
-const Phase = Object.freeze({
-  WORK: 'work',
-  SHORT_BREAK: 'short-break',
-  LONG_BREAK: 'long-break',
-});
-
-const DEFAULTS = Object.freeze({
-  work: 1500,
-  shortBreak: 300,
-  longBreak: 900,
-  rounds: 4,
-});
-
+const Phase = Object.freeze({ WORK: 'work', SHORT_BREAK: 'short-break', LONG_BREAK: 'long-break' });
+const DEFAULTS = Object.freeze({ work: 1500, shortBreak: 300, longBreak: 900, rounds: 4 });
 const SVG_NS = 'http://www.w3.org/2000/svg';
 
 class PomodoroTimer extends HTMLElement {
-  /** @type {number} Work duration in milliseconds */
-  #work;
-  /** @type {number} Short break duration in milliseconds */
-  #shortBreak;
-  /** @type {number} Long break duration in milliseconds */
-  #longBreak;
-  /** @type {number} Work sessions per cycle before long break */
-  #rounds;
-
-  /** @type {number} Current round (1-based) */
-  #currentRound = 1;
-  /** @type {string} Current phase */
-  #currentPhase = Phase.WORK;
-  /** @type {number} Duration of the current phase in milliseconds */
+  #work; #shortBreak; #longBreak; #rounds;
+  #round = 1;
+  #phase = Phase.WORK;
   #phaseDuration;
-  /** @type {number} Time remaining in current phase in milliseconds */
-  #timeRemaining;
-
-  /** Circumference of the progress ring in SVG user units. */
-  #circumference = 0;
-
-  /** Total duration of one full cycle in milliseconds. */
+  #remaining;
+  #C = 0; // circumference
   #totalDuration = 0;
-
-  /** @type {SVGGElement} */
-  #bgGroup;
-  /** @type {SVGGElement} */
-  #fgGroup;
-  /** @type {HTMLTimeElement} */
-  #timeEl;
-  /** @type {HTMLElement} */
-  #phaseLabelEl;
-  /** @type {HTMLButtonElement} */
-  #pauseBtn;
-  /** @type {HTMLButtonElement} */
-  #resetBtn;
-
-  // Settings elements cached for #updateRoundsUI
-  /** @type {HTMLInputElement | null} */
-  #shortBreakInput = null;
-  /** @type {HTMLElement | null} */
-  #shortBreakLabel = null;
-  /** @type {HTMLElement | null} */
-  #longBreakLabel = null;
-
-  /** @type {number | null} Epoch ms when the current phase started counting down. */
+  #bgGroup; #fgGroup; #timeEl; #phaseLabel; #pauseBtn; #resetBtn;
+  #sbInput = null; #sbLabel = null; #lbLabel = null;
   #startEpoch = null;
+  #ready = false;
+  #tick = new TickEngine(() => this.#onTick());
 
-  /** Whether connectedCallback has completed initial setup. */
-  #initialized = false;
-
-  /** @type {TickEngine} */
-  #tickEngine = new TickEngine(() => this.#tick());
-
-  /** Whether the timer is in single-round mode. */
-  get #isSingleRound() {
-    return this.#rounds === 1;
-  }
-
+  get #single() { return this.#rounds === 1; }
   static observedAttributes = ['work', 'short-break', 'long-break', 'rounds'];
 
-  get #state() {
-    return this.getAttribute('state');
-  }
+  get #state() { return this.getAttribute('state'); }
+  set #state(v) { this.setAttribute('state', v); this.#updateBtn(); }
 
-  set #state(value) {
-    this.setAttribute('state', value);
-    this.#updatePauseButton();
-  }
-
-  get #phase() {
-    return this.#currentPhase;
-  }
-
-  set #phase(value) {
-    this.#currentPhase = value;
-    this.setAttribute('data-phase', value);
+  get #currentPhase() { return this.#phase; }
+  set #currentPhase(v) {
+    this.#phase = v;
+    this.setAttribute('data-phase', v);
     this.#updatePhaseLabel();
   }
 
   async connectedCallback() {
-    const { template, sheets } = await loadComponentFromFiles(
-      new URL('./pomodoro-timer.html', import.meta.url),
-      new URL('../component.css', import.meta.url),
-      new URL('../timer.css', import.meta.url),
-      new URL('./pomodoro-timer.css', import.meta.url)
-    );
-
     if (!this.shadowRoot) {
-      this.attachShadow({ mode: 'open' });
-      this.shadowRoot.adoptedStyleSheets = sheets;
-      this.shadowRoot.appendChild(template.content.cloneNode(true));
-
-      this.#bgGroup = this.shadowRoot.getElementById('segments-background');
-      this.#fgGroup = this.shadowRoot.getElementById('segments-foreground');
-      this.#timeEl = this.shadowRoot.getElementById('timer-text');
-      this.#phaseLabelEl = this.shadowRoot.getElementById('phase-label');
-      this.#pauseBtn = this.shadowRoot.getElementById('pause-btn');
-      this.#resetBtn = this.shadowRoot.getElementById('reset-btn');
-
-      this.#pauseBtn.addEventListener('click', () => this.#togglePause());
-      this.#pauseBtn.disabled = false;
-
-      this.#resetBtn.addEventListener('click', () => this.#fullReset());
-      this.#resetBtn.disabled = false;
-
-      const removeBtn = this.shadowRoot.getElementById('remove-btn');
-      removeBtn.addEventListener('click', () =>
-        removeBtn.dispatchEvent(new CustomEvent('widget-removed', { bubbles: true, composed: true }))
+      await loadWidgetAsShadow(
+        this,
+        new URL('./pomodoro-timer.html', import.meta.url),
+        new URL('../shared/component.css', import.meta.url),
+        new URL('../shared/timer.css', import.meta.url),
+        new URL('./pomodoro-timer.css', import.meta.url),
       );
-      removeBtn.disabled = false;
+
+      this.#bgGroup = this.shadowRoot.getElementById('segments-bg');
+      this.#fgGroup = this.shadowRoot.getElementById('segments-fg');
+      this.#timeEl = this.shadowRoot.getElementById('timer-text');
+      this.#phaseLabel = this.shadowRoot.getElementById('phase-label');
+      this.#pauseBtn = registerButton(this.shadowRoot, 'pause-btn', () => this.#toggle());
+      this.#resetBtn = registerButton(this.shadowRoot, 'reset-btn', () => this.#fullReset());
 
       this.#initSettings();
     }
 
-    this.#circumference = 2 * Math.PI * 40; // r=40 in the SVG viewBox
-
-    this.#readAttributes();
+    this.#C = 2 * Math.PI * 40;
+    this.#readAttrs();
     this.#updateRoundsUI();
     this.#buildSegments();
     this.#initPhase();
 
     if (this.#startEpoch === null) {
-      const startTime = this.getAttribute('start-time');
-      const elapsed = this.getAttribute('elapsed');
-      const priorMs = elapsed ? Number(elapsed) : 0;
+      const st = this.getAttribute('start-time');
+      const el = this.getAttribute('elapsed');
+      const prior = el ? Number(el) : 0;
 
-      if (startTime) {
-        this.#startEpoch = Number(startTime);
-        const cycleElapsed = priorMs + (Date.now() - this.#startEpoch);
-
-        if (cycleElapsed < this.#totalDuration) {
-          this.#restorePhase(cycleElapsed);
+      if (st) {
+        this.#startEpoch = Number(st);
+        const cycleEl = prior + (Date.now() - this.#startEpoch);
+        if (cycleEl < this.#totalDuration) {
+          this.#restorePhase(cycleEl);
           this.#state = State.RUNNING;
         } else {
-          this.#timeRemaining = 0;
+          this.#remaining = 0;
           setPulseSyncDelay(this);
           this.removeAttribute('start-time');
           this.#state = State.FINISHED;
           this.dispatchEvent(new CustomEvent('timer-finished', { bubbles: true }));
         }
-      } else if (priorMs > 0) {
-        const persistedState = this.getAttribute('state');
-        if (persistedState === State.FINISHED && priorMs <= this.#totalDuration) {
-          // Restore to the phase that just completed, with time at zero.
-          this.#restorePhase(Math.max(0, priorMs - 1));
-          this.#timeRemaining = 0;
+      } else if (prior > 0) {
+        const ps = this.getAttribute('state');
+        if (ps === State.FINISHED && prior <= this.#totalDuration) {
+          this.#restorePhase(Math.max(0, prior - 1));
+          this.#remaining = 0;
           setPulseSyncDelay(this);
           this.#state = State.FINISHED;
           this.dispatchEvent(new CustomEvent('timer-finished', { bubbles: true }));
-        } else if (priorMs < this.#totalDuration) {
-          this.#restorePhase(priorMs);
+        } else if (prior < this.#totalDuration) {
+          this.#restorePhase(prior);
           this.#state = State.PAUSED;
         } else {
           this.#state = State.PAUSED;
@@ -185,355 +95,144 @@ class PomodoroTimer extends HTMLElement {
       }
     }
     this.#render();
-
-    if (this.#state === State.RUNNING) {
-      this.start();
-    }
-
-    this.#initialized = true;
+    if (this.#state === State.RUNNING) this.start();
+    this.#ready = true;
   }
 
-  disconnectedCallback() {
-    this.#tickEngine.stop();
-  }
+  disconnectedCallback() { this.#tick.stop(); }
+  sync() { if (this.#startEpoch !== null) this.#onTick(); }
 
-  /** Re-sync display to the wall clock. */
-  sync() {
-    if (this.#startEpoch === null) return;
-    this.#tick();
-  }
-
-  attributeChangedCallback(_, _oldVal, __) {
-    if (!this.#initialized) return;
-
-    this.#readAttributes();
+  attributeChangedCallback() {
+    if (!this.#ready) return;
+    this.#readAttrs();
     this.#updateRoundsUI();
     this.#fullReset();
   }
 
-  /** Read duration attributes into internal millisecond fields. */
-  #readAttributes() {
+  #readAttrs() {
     this.#work = parseInt(this.getAttribute('work') ?? String(DEFAULTS.work), 10) * 1000;
     this.#shortBreak = parseInt(this.getAttribute('short-break') ?? String(DEFAULTS.shortBreak), 10) * 1000;
     this.#longBreak = parseInt(this.getAttribute('long-break') ?? String(DEFAULTS.longBreak), 10) * 1000;
     this.#rounds = parseInt(this.getAttribute('rounds') ?? String(DEFAULTS.rounds), 10);
   }
 
-  // --- Segments -----------------------------------------------------------
+  // --- Segments ---
 
-  /**
-   * Build SVG circle elements for the full pomodoro cycle.
-   * Iterates rounds to produce interleaved work/break segments
-   * (e.g. 4 rounds: W, SB, W, SB, W, SB, W, LB).
-   */
   #buildSegments() {
     this.#bgGroup.innerHTML = '';
     this.#fgGroup.innerHTML = '';
-
-    this.#totalDuration = this.#rounds * this.#work
-      + (this.#rounds - 1) * this.#shortBreak
-      + this.#longBreak;
-
-    const C = this.#circumference;
-    let cumulativeArc = 0;
-
+    this.#totalDuration = this.#rounds * this.#work + (this.#rounds - 1) * this.#shortBreak + this.#longBreak;
+    let cumArc = 0;
     for (let r = 1; r <= this.#rounds; r++) {
-      // Work segment
-      const workArc = (this.#work / this.#totalDuration) * C;
-      cumulativeArc += workArc;
-      this.#addSegmentPair(Phase.WORK, workArc, cumulativeArc, C);
-
-      // Break segment
+      const wArc = (this.#work / this.#totalDuration) * this.#C;
+      cumArc += wArc;
+      this.#addPair(Phase.WORK, wArc, cumArc);
       const isLast = r === this.#rounds;
-      const breakPhase = isLast ? Phase.LONG_BREAK : Phase.SHORT_BREAK;
-      const breakArc = ((isLast ? this.#longBreak : this.#shortBreak) / this.#totalDuration) * C;
-      cumulativeArc += breakArc;
-      this.#addSegmentPair(breakPhase, breakArc, cumulativeArc, C);
+      const bPhase = isLast ? Phase.LONG_BREAK : Phase.SHORT_BREAK;
+      const bArc = ((isLast ? this.#longBreak : this.#shortBreak) / this.#totalDuration) * this.#C;
+      cumArc += bArc;
+      this.#addPair(bPhase, bArc, cumArc);
     }
   }
 
-  /**
-   * Append a background + foreground circle pair for one segment.
-   * @param {string} phase        Phase type (for data-phase / CSS colour)
-   * @param {number} arcLength    Arc length in SVG units
-   * @param {number} dashOffset   Cumulative offset (positions the arc CCW)
-   * @param {number} C            Circumference
-   */
-  #addSegmentPair(phase, arcLength, dashOffset, C) {
-    const attrs = { cx: '50', cy: '50', r: '40' };
-    const dasharray = `${arcLength.toFixed(4)} ${(C - arcLength).toFixed(4)}`;
-    const offset = dashOffset.toFixed(4);
-
-    for (const [cls, group] of [['segment-bg', this.#bgGroup], ['segment-fg', this.#fgGroup]]) {
-      const circle = document.createElementNS(SVG_NS, 'circle');
-      for (const [k, v] of Object.entries(attrs)) circle.setAttribute(k, v);
-      circle.classList.add('segment', cls);
-      circle.dataset.phase = phase;
-      circle.dataset.arc = arcLength.toFixed(4);
-      circle.style.strokeDasharray = dasharray;
-      circle.style.strokeDashoffset = offset;
-      group.appendChild(circle);
+  #addPair(phase, arc, offset) {
+    const da = `${arc.toFixed(4)} ${(this.#C - arc).toFixed(4)}`;
+    const off = offset.toFixed(4);
+    for (const grp of [this.#bgGroup, this.#fgGroup]) {
+      const c = document.createElementNS(SVG_NS, 'circle');
+      c.setAttribute('cx', '50'); c.setAttribute('cy', '50'); c.setAttribute('r', '40');
+      c.dataset.phase = phase;
+      c.dataset.arc = arc.toFixed(4);
+      c.style.strokeDasharray = da;
+      c.style.strokeDashoffset = off;
+      grp.appendChild(c);
     }
   }
 
-  /**
-   * Resolve a cycle-elapsed millisecond count into a round, phase, and offset.
-   *
-   * The cycle is: [W, SB] × (rounds − 1), then [W, LB].
-   * A "regular pair" is work + shortBreak; the final pair is work + longBreak.
-   *
-   * @param {number} elapsedMs  Milliseconds elapsed since the cycle started.
-   * @returns {{ round: number, phase: string, offset: number }}
-   */
-  #resolvePhase(elapsedMs) {
-    const regularPair = this.#work + this.#shortBreak;
-    const regularTotal = (this.#rounds - 1) * regularPair;
+  // --- Phase resolution ---
 
-    if (elapsedMs < regularTotal) {
-      const pairIndex = Math.floor(elapsedMs / regularPair);
-      const pairOffset = elapsedMs % regularPair;
-      return pairOffset < this.#work
-        ? { round: pairIndex + 1, phase: Phase.WORK, offset: pairOffset }
-        : { round: pairIndex + 1, phase: Phase.SHORT_BREAK, offset: pairOffset - this.#work };
+  #resolvePhase(ms) {
+    const pair = this.#work + this.#shortBreak;
+    const regTotal = (this.#rounds - 1) * pair;
+    if (ms < regTotal) {
+      const pi = Math.floor(ms / pair);
+      const po = ms % pair;
+      return po < this.#work
+        ? { round: pi + 1, phase: Phase.WORK, offset: po }
+        : { round: pi + 1, phase: Phase.SHORT_BREAK, offset: po - this.#work };
     }
-
-    const lastOffset = elapsedMs - regularTotal;
-    return lastOffset < this.#work
-      ? { round: this.#rounds, phase: Phase.WORK, offset: lastOffset }
-      : { round: this.#rounds, phase: Phase.LONG_BREAK, offset: lastOffset - this.#work };
+    const lo = ms - regTotal;
+    return lo < this.#work
+      ? { round: this.#rounds, phase: Phase.WORK, offset: lo }
+      : { round: this.#rounds, phase: Phase.LONG_BREAK, offset: lo - this.#work };
   }
 
-  /**
-   * Restore #currentRound, #currentPhase, #phaseDuration, and #timeRemaining
-   * from a cycle-elapsed millisecond count.
-   * @param {number} elapsedMs
-   */
-  #restorePhase(elapsedMs) {
-    const { round, phase, offset } = this.#resolvePhase(elapsedMs);
-    this.#currentRound = round;
-    this.#currentPhase = phase;
+  #restorePhase(ms) {
+    const { round, phase, offset } = this.#resolvePhase(ms);
+    this.#round = round;
+    this.#phase = phase;
     this.#initPhase();
-    this.#timeRemaining = this.#phaseDuration - offset;
+    this.#remaining = this.#phaseDuration - offset;
   }
 
-  /**
-   * Compute the total milliseconds elapsed before the current phase started.
-   * @returns {number}
-   */
-  #elapsedBeforeCurrentPhase() {
-    const regularPair = this.#work + this.#shortBreak;
-    const fullRoundsBefore = this.#currentRound - 1;
-
-    if (this.#currentPhase === Phase.WORK) {
-      return fullRoundsBefore * regularPair;
-    }
-    // Break phase — add the work segment of the current round
-    return fullRoundsBefore * regularPair + this.#work;
+  #elapsedBefore() {
+    const pair = this.#work + this.#shortBreak;
+    const before = this.#round - 1;
+    return this.#phase === Phase.WORK ? before * pair : before * pair + this.#work;
   }
 
-  // --- Phase management ---------------------------------------------------
+  // --- Phase management ---
 
-  /** Set up the current phase duration and time remaining. */
   #initPhase() {
-    switch (this.#currentPhase) {
-      case Phase.WORK:
-        this.#phaseDuration = this.#work;
-        break;
-      case Phase.SHORT_BREAK:
-        this.#phaseDuration = this.#shortBreak;
-        break;
-      case Phase.LONG_BREAK:
-        this.#phaseDuration = this.#longBreak;
-        break;
-    }
-    this.#timeRemaining = this.#phaseDuration;
-    this.#phase = this.#currentPhase; // triggers attribute + label update
+    this.#phaseDuration = this.#phase === Phase.WORK ? this.#work
+      : this.#phase === Phase.SHORT_BREAK ? this.#shortBreak : this.#longBreak;
+    this.#remaining = this.#phaseDuration;
+    this.#currentPhase = this.#phase; // triggers attribute + label update
   }
 
-  /**
-   * Determine the next phase and advance to it.
-   * Work -> short break (or long break if last round)
-   * Any break -> next work round
-   */
   #advancePhase() {
-    if (this.#currentPhase === Phase.WORK) {
-      // After work: long break if we just finished the last round, else short break
-      if (this.#currentRound >= this.#rounds) {
-        this.#currentPhase = Phase.LONG_BREAK;
-      } else {
-        this.#currentPhase = Phase.SHORT_BREAK;
-      }
+    if (this.#phase === Phase.WORK) {
+      this.#phase = this.#round >= this.#rounds ? Phase.LONG_BREAK : Phase.SHORT_BREAK;
     } else {
-      // After any break: start next work round
-      if (this.#currentPhase === Phase.LONG_BREAK) {
-        // Cycle complete — reset to round 1
-        this.#currentRound = 1;
-      } else {
-        this.#currentRound += 1;
-      }
-      this.#currentPhase = Phase.WORK;
+      if (this.#phase === Phase.LONG_BREAK) this.#round = 1;
+      else this.#round += 1;
+      this.#phase = Phase.WORK;
     }
     this.#initPhase();
   }
 
-  // --- Settings -----------------------------------------------------------
-
-  #initSettings() {
-    const workInput = this.shadowRoot.getElementById('setting-work');
-    const shortBreakInput = this.shadowRoot.getElementById('setting-short-break');
-    const longBreakInput = this.shadowRoot.getElementById('setting-long-break');
-    const roundsInput = this.shadowRoot.getElementById('setting-rounds');
-    const customChip = this.shadowRoot.getElementById('custom-chip');
-    const customFields = this.shadowRoot.querySelector('.custom-fields');
-    const presetChips = this.shadowRoot.querySelectorAll('.preset-chip[data-work]');
-
-    // Cache elements for #updateRoundsUI
-    this.#shortBreakInput = shortBreakInput;
-    this.#shortBreakLabel = this.shadowRoot.getElementById('short-break-label');
-    this.#longBreakLabel = this.shadowRoot.getElementById('long-break-label');
-
-    // Populate inputs from current attributes
-    if (workInput) workInput.value = this.getAttribute('work') ?? String(DEFAULTS.work);
-    if (shortBreakInput) shortBreakInput.value = this.getAttribute('short-break') ?? String(DEFAULTS.shortBreak);
-    if (longBreakInput) longBreakInput.value = this.getAttribute('long-break') ?? String(DEFAULTS.longBreak);
-    if (roundsInput) roundsInput.value = this.getAttribute('rounds') ?? String(DEFAULTS.rounds);
-
-    // Input change handlers
-    const applyCustom = () => {
-      const w = parseInt(workInput?.value, 10);
-      const sb = parseInt(shortBreakInput?.value, 10);
-      const lb = parseInt(longBreakInput?.value, 10);
-      const r = parseInt(roundsInput?.value, 10);
-      if (w > 0) this.setAttribute('work', String(w));
-      if (sb > 0) this.setAttribute('short-break', String(sb));
-      if (lb > 0) this.setAttribute('long-break', String(lb));
-      if (r > 0) this.setAttribute('rounds', String(r));
-    };
-
-    workInput?.addEventListener('input', applyCustom);
-    shortBreakInput?.addEventListener('input', applyCustom);
-    longBreakInput?.addEventListener('input', applyCustom);
-    roundsInput?.addEventListener('input', applyCustom);
-
-    // Determine initial active preset
-    this.#updateActivePreset(presetChips, customChip, customFields);
-
-    // Preset chip handlers
-    for (const chip of presetChips) {
-      chip.addEventListener('click', () => {
-        const w = chip.dataset.work;
-        const sb = chip.dataset.shortBreak;
-        const lb = chip.dataset.longBreak;
-        const r = chip.dataset.rounds;
-
-        this.setAttribute('work', w);
-        this.setAttribute('short-break', sb);
-        this.setAttribute('long-break', lb);
-        this.setAttribute('rounds', r);
-
-        if (workInput) workInput.value = w;
-        if (shortBreakInput) shortBreakInput.value = sb;
-        if (longBreakInput) longBreakInput.value = lb;
-        if (roundsInput) roundsInput.value = r;
-
-        this.#updateActivePreset(presetChips, customChip, customFields);
-      });
-    }
-
-    // Custom chip handler
-    if (customChip) {
-      customChip.addEventListener('click', () => {
-        this.#showCustomFields(presetChips, customChip, customFields);
-        workInput?.focus();
-      });
-    }
-  }
-
-  /**
-   * Check if current attributes match a preset and highlight accordingly.
-   * @param {NodeListOf<HTMLButtonElement>} presetChips
-   * @param {HTMLButtonElement | null} customChip
-   * @param {HTMLElement | null} customFields
-   */
-  #updateActivePreset(presetChips, customChip, customFields) {
-    const w = this.getAttribute('work') ?? String(DEFAULTS.work);
-    const sb = this.getAttribute('short-break') ?? String(DEFAULTS.shortBreak);
-    const lb = this.getAttribute('long-break') ?? String(DEFAULTS.longBreak);
-    const r = this.getAttribute('rounds') ?? String(DEFAULTS.rounds);
-
-    let matched = false;
-    for (const chip of presetChips) {
-      const match =
-        chip.dataset.work === w &&
-        chip.dataset.shortBreak === sb &&
-        chip.dataset.longBreak === lb &&
-        chip.dataset.rounds === r;
-      chip.setAttribute('aria-pressed', String(match));
-      if (match) matched = true;
-    }
-
-    if (matched) {
-      if (customChip) customChip.setAttribute('aria-pressed', 'false');
-      if (customFields) customFields.hidden = true;
-    } else {
-      this.#showCustomFields(presetChips, customChip, customFields);
-    }
-  }
-
-  /**
-   * Activate the Custom chip and reveal the custom inputs.
-   * @param {NodeListOf<HTMLButtonElement>} presetChips
-   * @param {HTMLButtonElement | null} customChip
-   * @param {HTMLElement | null} customFields
-   */
-  #showCustomFields(presetChips, customChip, customFields) {
-    for (const chip of presetChips) {
-      chip.setAttribute('aria-pressed', 'false');
-    }
-    if (customChip) customChip.setAttribute('aria-pressed', 'true');
-    if (customFields) customFields.hidden = false;
-  }
-
-  // --- Playback controls --------------------------------------------------
+  // --- Playback ---
 
   start() {
-    if (this.#tickEngine.running) return;
-    this.#tickEngine.start(isFineGrained(this.#timeRemaining));
+    if (this.#tick.running) return;
+    this.#tick.start(isFineGrained(this.#remaining));
     this.#state = State.RUNNING;
     this.dispatchEvent(new CustomEvent('timer-started', { bubbles: true }));
-    this.#startEpoch = Date.now() - (this.#phaseDuration - this.#timeRemaining);
+    this.#startEpoch = Date.now() - (this.#phaseDuration - this.#remaining);
     this.setAttribute('start-time', String(this.#startEpoch));
-    const priorMs = this.#elapsedBeforeCurrentPhase();
-    if (priorMs > 0) {
-      this.setAttribute('elapsed', String(priorMs));
-    } else {
-      this.removeAttribute('elapsed');
-    }
+    const prior = this.#elapsedBefore();
+    if (prior > 0) this.setAttribute('elapsed', String(prior));
+    else this.removeAttribute('elapsed');
   }
 
   pause() {
-    this.#tickEngine.stop();
+    this.#tick.stop();
     this.#state = State.PAUSED;
     this.dispatchEvent(new CustomEvent('timer-paused', { bubbles: true }));
-    const elapsedMs = this.#elapsedBeforeCurrentPhase() + (this.#phaseDuration - this.#timeRemaining);
+    const elapsed = this.#elapsedBefore() + (this.#phaseDuration - this.#remaining);
     this.#startEpoch = null;
     this.removeAttribute('start-time');
-    if (elapsedMs > 0) {
-      this.setAttribute('elapsed', String(elapsedMs));
-    }
+    if (elapsed > 0) this.setAttribute('elapsed', String(elapsed));
   }
 
-  /**
-   * Full reset: stop everything, return to work phase round 1.
-   */
   #fullReset() {
-    this.#tickEngine.stop();
+    this.#tick.stop();
     this.#startEpoch = null;
     this.removeAttribute('start-time');
     this.removeAttribute('elapsed');
     clearPulseSyncDelay(this);
-    this.#currentRound = 1;
-    this.#currentPhase = Phase.WORK;
+    this.#round = 1;
+    this.#phase = Phase.WORK;
     this.#buildSegments();
     this.#initPhase();
     this.#state = State.PAUSED;
@@ -541,9 +240,8 @@ class PomodoroTimer extends HTMLElement {
     this.dispatchEvent(new CustomEvent('timer-paused', { bubbles: true }));
   }
 
-  #togglePause() {
+  #toggle() {
     if (this.#state === State.FINISHED) {
-      // Advance to the next phase and start it
       clearPulseSyncDelay(this);
       this.#advancePhase();
       this.#render();
@@ -555,7 +253,7 @@ class PomodoroTimer extends HTMLElement {
     }
   }
 
-  #updatePauseButton() {
+  #updateBtn() {
     switch (this.#state) {
       case State.RUNNING:
         this.#pauseBtn.textContent = '⏸︎';
@@ -564,116 +262,76 @@ class PomodoroTimer extends HTMLElement {
         break;
       case State.PAUSED: {
         this.#pauseBtn.textContent = '\u25B6\uFE0E';
-        const label = this.#currentPhaseLabel();
-        this.#pauseBtn.title = `Start ${label}`;
-        this.#pauseBtn.setAttribute('aria-label', `Start ${label}`);
+        const l = this.#phaseDisplayLabel();
+        this.#pauseBtn.title = `Start ${l}`;
+        this.#pauseBtn.setAttribute('aria-label', `Start ${l}`);
         break;
       }
       case State.FINISHED: {
-        // Show what the NEXT phase will be
-        const nextLabel = this.#nextPhaseLabel();
+        const nl = this.#nextPhaseLabel();
         this.#pauseBtn.textContent = '⏭︎';
-        this.#pauseBtn.title = `Move to ${nextLabel}`;
-        this.#pauseBtn.setAttribute('aria-label', `Move to ${nextLabel}`);
+        this.#pauseBtn.title = `Move to ${nl}`;
+        this.#pauseBtn.setAttribute('aria-label', `Move to ${nl}`);
         break;
       }
     }
   }
 
-  /**
-   * Return a human-readable label for the current phase.
-   * @returns {string}
-   */
-  #currentPhaseLabel() {
-    if (this.#currentPhase === Phase.WORK) return 'work';
-    if (this.#isSingleRound) return 'break';
-    if (this.#currentPhase === Phase.SHORT_BREAK) return 'short break';
-    return 'long break';
+  #phaseDisplayLabel() {
+    if (this.#phase === Phase.WORK) return 'work';
+    if (this.#single) return 'break';
+    return this.#phase === Phase.SHORT_BREAK ? 'short break' : 'long break';
   }
 
-  /**
-   * Return a human-readable label for the phase that will follow the current one.
-   * @returns {string}
-   */
   #nextPhaseLabel() {
-    if (this.#currentPhase === Phase.WORK) {
-      if (this.#isSingleRound) return 'break';
-      return this.#currentRound >= this.#rounds ? 'long break' : 'short break';
+    if (this.#phase === Phase.WORK) {
+      if (this.#single) return 'break';
+      return this.#round >= this.#rounds ? 'long break' : 'short break';
     }
     return 'work';
   }
 
   #updatePhaseLabel() {
-    if (!this.#phaseLabelEl) return;
-
-    if (this.#isSingleRound) {
-      // Single round — no counter, no short/long distinction
-      this.#phaseLabelEl.textContent =
-        this.#currentPhase === Phase.WORK ? 'Work' : 'Break';
+    if (!this.#phaseLabel) return;
+    if (this.#single) {
+      this.#phaseLabel.textContent = this.#phase === Phase.WORK ? 'Work' : 'Break';
       return;
     }
-
-    switch (this.#currentPhase) {
+    switch (this.#phase) {
       case Phase.WORK:
-        this.#phaseLabelEl.textContent = `Work ${this.#currentRound}/${this.#rounds}`;
+        this.#phaseLabel.textContent = `Work ${this.#round}/${this.#rounds}`;
         break;
       case Phase.SHORT_BREAK:
-        if (this.#rounds === 2) {
-          // Special case for 2-round mode: only one short break, so no round counter
-          this.#phaseLabelEl.textContent = 'Short break';
-        } else {
-          this.#phaseLabelEl.textContent = `Short break ${this.#currentRound}/${this.#rounds - 1}`;
-        }
+        this.#phaseLabel.textContent = this.#rounds === 2
+          ? 'Short break'
+          : `Short break ${this.#round}/${this.#rounds - 1}`;
         break;
       case Phase.LONG_BREAK:
-        this.#phaseLabelEl.textContent = 'Long break';
+        this.#phaseLabel.textContent = 'Long break';
         break;
     }
   }
 
-  /**
-   * Update the settings UI to reflect single-round vs multi-round mode.
-   * When rounds = 1, short break is never used — disable it and simplify labels.
-   */
   #updateRoundsUI() {
-    const single = this.#isSingleRound;
-
-    if (this.#shortBreakInput) {
-      this.#shortBreakInput.disabled = single;
-    }
-    if (this.#shortBreakLabel) {
-      this.#shortBreakLabel.textContent = single
-        ? 'Short break (seconds) - not used with 1 round'
-        : 'Short break (seconds)';
-    }
-    if (this.#longBreakLabel) {
-      this.#longBreakLabel.textContent = single
-        ? 'Break (seconds)'
-        : 'Long break (seconds)';
-    }
+    const s = this.#single;
+    if (this.#sbInput) this.#sbInput.disabled = s;
+    if (this.#sbLabel) this.#sbLabel.textContent = s ? 'Short break (seconds) - not used with 1 round' : 'Short break (seconds)';
+    if (this.#lbLabel) this.#lbLabel.textContent = s ? 'Break (seconds)' : 'Long break (seconds)';
   }
 
-  // --- Tick and render ----------------------------------------------------
+  // --- Tick & render ---
 
-  #tick() {
-    const wasFineGrained = isFineGrained(this.#timeRemaining);
-    if (this.#startEpoch !== null) {
-      this.#timeRemaining = Math.max(0, this.#phaseDuration - (Date.now() - this.#startEpoch));
-    }
-
-    // Switch interval speed when crossing the 60-second boundary.
-    if (!wasFineGrained && isFineGrained(this.#timeRemaining)) {
-      this.#tickEngine.start(true);
-    }
-
+  #onTick() {
+    const wasFine = isFineGrained(this.#remaining);
+    if (this.#startEpoch !== null)
+      this.#remaining = Math.max(0, this.#phaseDuration - (Date.now() - this.#startEpoch));
+    if (!wasFine && isFineGrained(this.#remaining)) this.#tick.start(true);
     this.#render();
-
-    if (this.#timeRemaining <= 0) {
-      this.#tickEngine.stop();
+    if (this.#remaining <= 0) {
+      this.#tick.stop();
       this.#startEpoch = null;
       this.removeAttribute('start-time');
-      const cycleElapsed = this.#elapsedBeforeCurrentPhase() + this.#phaseDuration;
-      this.setAttribute('elapsed', String(cycleElapsed));
+      this.setAttribute('elapsed', String(this.#elapsedBefore() + this.#phaseDuration));
       setPulseSyncDelay(this);
       this.#state = State.FINISHED;
       this.dispatchEvent(new CustomEvent('timer-finished', { bubbles: true }));
@@ -681,46 +339,117 @@ class PomodoroTimer extends HTMLElement {
     }
   }
 
-  /**
-   * Render all segment foreground circles to reflect current progress.
-   *
-   * Uses global elapsed time to determine which segments are consumed,
-   * active, or future — without needing a stored schedule array.
-   */
   #render() {
-    const { text, datetime, tickDuration } = formatTime(this.#timeRemaining);
+    const { text, datetime, tickDuration } = formatTime(this.#remaining);
     this.#timeEl.textContent = text;
     this.#timeEl.setAttribute('datetime', datetime);
     this.#updatePhaseLabel();
 
-    const C = this.#circumference;
-    const consumed = this.#elapsedBeforeCurrentPhase() + (this.#phaseDuration - this.#timeRemaining);
-    const fgCircles = this.#fgGroup.children;
-    let segmentEnd = 0;
-
-    for (let i = 0; i < fgCircles.length; i++) {
-      const fg = /** @type {SVGCircleElement} */ (fgCircles[i]);
-      const arcLength = parseFloat(fg.dataset.arc);
-      const segmentStart = segmentEnd;
-      segmentEnd += (arcLength / C) * this.#totalDuration;
-
-      const segmentConsumed = consumed - segmentStart;
-
-      if (segmentConsumed >= segmentEnd - segmentStart) {
-        // Fully consumed
-        fg.style.strokeDasharray = `0 ${C.toFixed(4)}`;
+    const consumed = this.#elapsedBefore() + (this.#phaseDuration - this.#remaining);
+    const fgs = this.#fgGroup.children;
+    let segEnd = 0;
+    for (let i = 0; i < fgs.length; i++) {
+      const fg = fgs[i];
+      const arc = parseFloat(fg.dataset.arc);
+      const segStart = segEnd;
+      segEnd += (arc / this.#C) * this.#totalDuration;
+      const sc = consumed - segStart;
+      const segLen = segEnd - segStart;
+      if (sc >= segLen) {
+        fg.style.strokeDasharray = `0 ${this.#C.toFixed(4)}`;
         fg.style.transitionDuration = '0s';
-      } else if (segmentConsumed > 0) {
-        // Active — shrink visible dash; drains counter-clockwise from 12
-        const visibleLength = arcLength * (1 - segmentConsumed / (segmentEnd - segmentStart));
-        fg.style.strokeDasharray = `${visibleLength.toFixed(4)} ${(C - visibleLength).toFixed(4)}`;
+      } else if (sc > 0) {
+        const vis = arc * (1 - sc / segLen);
+        fg.style.strokeDasharray = `${vis.toFixed(4)} ${(this.#C - vis).toFixed(4)}`;
         fg.style.transitionDuration = tickDuration;
       } else {
-        // Future — fully visible
-        fg.style.strokeDasharray = `${arcLength.toFixed(4)} ${(C - arcLength).toFixed(4)}`;
+        fg.style.strokeDasharray = `${arc.toFixed(4)} ${(this.#C - arc).toFixed(4)}`;
         fg.style.transitionDuration = '0s';
       }
     }
+  }
+
+  // --- Settings ---
+
+  #initSettings() {
+    const wi = this.shadowRoot.getElementById('setting-work');
+    const sbi = this.shadowRoot.getElementById('setting-short-break');
+    const lbi = this.shadowRoot.getElementById('setting-long-break');
+    const ri = this.shadowRoot.getElementById('setting-rounds');
+    const customChip = this.shadowRoot.getElementById('custom-chip');
+    const customFields = this.shadowRoot.querySelector('.custom-fields');
+    const presets = this.shadowRoot.querySelectorAll('.preset-chip[data-work]');
+
+    this.#sbInput = sbi;
+    this.#sbLabel = this.shadowRoot.getElementById('short-break-label');
+    this.#lbLabel = this.shadowRoot.getElementById('long-break-label');
+
+    if (wi) wi.value = this.getAttribute('work') ?? String(DEFAULTS.work);
+    if (sbi) sbi.value = this.getAttribute('short-break') ?? String(DEFAULTS.shortBreak);
+    if (lbi) lbi.value = this.getAttribute('long-break') ?? String(DEFAULTS.longBreak);
+    if (ri) ri.value = this.getAttribute('rounds') ?? String(DEFAULTS.rounds);
+
+    const apply = () => {
+      const w = parseInt(wi?.value, 10);
+      const sb = parseInt(sbi?.value, 10);
+      const lb = parseInt(lbi?.value, 10);
+      const r = parseInt(ri?.value, 10);
+      if (w > 0) this.setAttribute('work', String(w));
+      if (sb > 0) this.setAttribute('short-break', String(sb));
+      if (lb > 0) this.setAttribute('long-break', String(lb));
+      if (r > 0) this.setAttribute('rounds', String(r));
+    };
+
+    wi?.addEventListener('input', apply);
+    sbi?.addEventListener('input', apply);
+    lbi?.addEventListener('input', apply);
+    ri?.addEventListener('input', apply);
+
+    this.#syncPresets(presets, customChip, customFields);
+
+    for (const chip of presets) {
+      chip.addEventListener('click', () => {
+        this.setAttribute('work', chip.dataset.work);
+        this.setAttribute('short-break', chip.dataset.shortBreak);
+        this.setAttribute('long-break', chip.dataset.longBreak);
+        this.setAttribute('rounds', chip.dataset.rounds);
+        if (wi) wi.value = chip.dataset.work;
+        if (sbi) sbi.value = chip.dataset.shortBreak;
+        if (lbi) lbi.value = chip.dataset.longBreak;
+        if (ri) ri.value = chip.dataset.rounds;
+        this.#syncPresets(presets, customChip, customFields);
+      });
+    }
+
+    customChip?.addEventListener('click', () => {
+      this.#showCustom(presets, customChip, customFields);
+      wi?.focus();
+    });
+  }
+
+  #syncPresets(chips, customChip, fields) {
+    const w = this.getAttribute('work') ?? String(DEFAULTS.work);
+    const sb = this.getAttribute('short-break') ?? String(DEFAULTS.shortBreak);
+    const lb = this.getAttribute('long-break') ?? String(DEFAULTS.longBreak);
+    const r = this.getAttribute('rounds') ?? String(DEFAULTS.rounds);
+    let matched = false;
+    for (const c of chips) {
+      const m = c.dataset.work === w && c.dataset.shortBreak === sb && c.dataset.longBreak === lb && c.dataset.rounds === r;
+      c.setAttribute('aria-pressed', String(m));
+      if (m) matched = true;
+    }
+    if (matched) {
+      customChip?.setAttribute('aria-pressed', 'false');
+      if (fields) fields.hidden = true;
+    } else {
+      this.#showCustom(chips, customChip, fields);
+    }
+  }
+
+  #showCustom(chips, customChip, fields) {
+    for (const c of chips) c.setAttribute('aria-pressed', 'false');
+    customChip?.setAttribute('aria-pressed', 'true');
+    if (fields) fields.hidden = false;
   }
 }
 

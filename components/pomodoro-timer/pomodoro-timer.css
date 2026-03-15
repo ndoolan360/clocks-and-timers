@@ -6,9 +6,16 @@
   color: color-mix(in srgb, var(--foreground, #DDD) 70%, transparent);
 }
 
-/* ---- Segment ring styles ---- */
+#segments-fg.segments>circle {
+  transition-property: stroke-dasharray;
+  transition-timing-function: linear;
+}
 
-.segment {
+#segments-bg.segments>circle {
+  opacity: 0.2;
+}
+
+.segments>circle {
   fill: transparent;
   stroke-width: 20px;
   stroke-linecap: butt;
@@ -16,29 +23,18 @@
   transform-origin: center center;
 }
 
-.segment-bg {
-  opacity: 0.2;
-}
-
-.segment-fg {
-  transition-property: stroke-dasharray;
-  transition-timing-function: linear;
-}
-
-/* Phase colours */
-.segment[data-phase="work"] {
+.segments>circle[data-phase="work"] {
   stroke: var(--progress-1-colour, royalblue);
 }
 
-.segment[data-phase="short-break"] {
+.segments>circle[data-phase="short-break"] {
   stroke: var(--progress-2-colour, lightseagreen);
 }
 
-.segment[data-phase="long-break"] {
+.segments>circle[data-phase="long-break"] {
   stroke: var(--progress-3-colour, mediumseagreen);
 }
 
-/* Finished state — hide foreground strokes, tint backgrounds red */
 :host([state="finished"]) .segment-fg {
   stroke: transparent !important;
 }

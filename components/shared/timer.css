@@ -1,9 +1,6 @@
 #timer {
   position: absolute;
-  top: 1rem;
-  left: 1rem;
-  width: calc(100% - 2rem);
-  height: calc(100% - 2rem);
+  inset: 1rem;
   display: block;
   transform: scale(1);
   filter: brightness(1);
@@ -24,7 +21,7 @@
 
 :host([state="finished"]) #timer {
   animation: finished-pulse 0.5s ease-in-out infinite;
-  animation-delay: calc(var(--pulse-delay-ms, 0));
+  animation-delay: var(--pulse-delay-ms, 0ms);
   transform-origin: center;
 }
 
@@ -36,7 +33,6 @@
 }
 
 @media (prefers-reduced-motion: reduce) {
-
   :host([state="finished"]) #timer {
     animation: none;
   }

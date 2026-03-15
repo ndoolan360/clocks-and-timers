@@ -1,8 +1,6 @@
 #clock {
   position: absolute;
   inset: 1rem;
-  width: calc(100% - 2rem);
-  height: calc(100% - 2rem);
 }
 
 #clock-text {
@@ -15,9 +13,12 @@
   height: max-content;
 }
 
+/* ---- SVG stroke defaults ---- */
+
 #clock,
+#clock-face,
 .hand,
-#clock-face {
+.hand>line {
   stroke: var(--foreground, #DDD);
   fill: none;
   stroke-width: 0.125rem;
@@ -29,6 +30,8 @@
   stroke: red;
   stroke-width: 2px;
 }
+
+/* ---- Sweep animation ---- */
 
 @keyframes sweep {
   from {
@@ -44,7 +47,7 @@
 
 /*
  * Pre-computed dasharray values (no calc() in stroke-dasharray for Firefox).
- * r = 37, circumference = 2π×37 ≈ 232.4779
+ * r = 37, circumference = 2π × 37 ≈ 232.4779
  * minor gap = circumference / 60 - 0.5 ≈ 3.3746
  * minor last = gap + 0.5                ≈ 3.8746
  * major gap = circumference / 12 - 0.8  ≈ 18.5732
@@ -57,7 +60,6 @@
   transform-origin: 50px 40px;
 }
 
-/* Minor ticks: 4-of-every-5 dashes around r=37 (skips major positions) */
 .tick-ring.minor {
   --gap: 3.3746;
   --last: 3.8746;
@@ -67,7 +69,6 @@
   opacity: 0.4;
 }
 
-/* Major ticks: 12 dashes around r=37, every 5th mark */
 .tick-ring.major {
   --gap: 18.5732;
   stroke-width: 5px;

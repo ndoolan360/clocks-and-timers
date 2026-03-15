@@ -1,87 +1,38 @@
-import { loadComponentFromFiles } from "../load.js";
+import { loadWidgetAsShadow, registerButton } from '../shared/widget.js';
 
-/** Main dial geometry. */
-const MAIN_CX = 50;
-const MAIN_CY = 40;
-const MAIN_NUM_R = 31;
-const MAIN_NUM_COUNT = 12;
-const MAIN_NUM_STEP = 5;
-const MAIN_NUM_MAX = 60;
-
-/** Sub-dial geometry. */
-const SUB_CX = 50;
-const SUB_CY = 25;
-const SUB_NUM_R = 6.5;
-const SUB_NUM_COUNT = 10;
-const SUB_NUM_STEP = 3;
-const SUB_NUM_MAX = 30;
-
-/** Full revolution of the minute hand in milliseconds (30 minutes). */
-const MINUTE_REVOLUTION_MS = 30 * 60 * 1000;
-
-/** Full revolution of the second hand in milliseconds (60 seconds). */
-const SECOND_REVOLUTION_MS = 60 * 1000;
+const SECOND_REV = 60_000;
+const MINUTE_REV = 30 * 60_000;
 
 class StopwatchClock extends HTMLElement {
-  /** @type {number} Elapsed time in milliseconds */
   #elapsed = 0;
-  /** @type {number | null} */
   #startEpoch = null;
-  /** @type {number | null} */
   #intervalId = null;
-  /** @type {SVGLineElement} */
   #secondHand;
-  /** @type {SVGLineElement} */
   #minuteHand;
-  /** @type {HTMLTimeElement} */
   #timeEl;
-  /** @type {HTMLButtonElement} */
   #pauseBtn;
 
-  get #state() {
-    return this.getAttribute('state');
-  }
-
-  set #state(value) {
-    this.setAttribute('state', value);
-    this.#updatePauseButton();
-  }
+  get #state() { return this.getAttribute('state'); }
+  set #state(v) { this.setAttribute('state', v); this.#updateBtn(); }
 
   async connectedCallback() {
-    const { template, sheets } = await loadComponentFromFiles(
-      new URL('./stopwatch-clock.html', import.meta.url),
-      new URL('../component.css', import.meta.url),
-      new URL('../clock.css', import.meta.url),
-      new URL('./stopwatch-clock.css', import.meta.url)
-    );
-
     if (!this.shadowRoot) {
-      this.attachShadow({ mode: 'open' });
-      this.shadowRoot.adoptedStyleSheets = sheets;
-      this.shadowRoot.appendChild(template.content.cloneNode(true));
+      await loadWidgetAsShadow(
+        this,
+        new URL('./stopwatch-clock.html', import.meta.url),
+        new URL('../shared/component.css', import.meta.url),
+        new URL('../shared/clock.css', import.meta.url),
+        new URL('./stopwatch-clock.css', import.meta.url),
+      );
 
       this.#secondHand = this.shadowRoot.getElementById('second-hand');
       this.#minuteHand = this.shadowRoot.getElementById('minute-hand');
       this.#timeEl = this.shadowRoot.getElementById('clock-text');
       this.#pauseBtn = this.shadowRoot.getElementById('pause-btn');
-
-      // Position dial numbers
-      this.#positionDialNumbers('main-num', MAIN_NUM_COUNT, MAIN_NUM_STEP, MAIN_NUM_MAX, MAIN_CX, MAIN_CY, MAIN_NUM_R);
-      this.#positionDialNumbers('minute-num', SUB_NUM_COUNT, SUB_NUM_STEP, SUB_NUM_MAX, SUB_CX, SUB_CY, SUB_NUM_R);
-
-      // Controls
-      this.#pauseBtn.addEventListener('click', () => this.#togglePause());
-      this.#pauseBtn.disabled = false;
-
-      const resetBtn = this.shadowRoot.getElementById('reset-btn');
-      resetBtn.addEventListener('click', () => this.#reset());
-      resetBtn.disabled = false;
-
-      const removeBtn = this.shadowRoot.getElementById('remove-btn');
-      removeBtn.addEventListener('click', () =>
-        removeBtn.dispatchEvent(new CustomEvent('widget-removed', { bubbles: true, composed: true }))
-      );
-      removeBtn.disabled = false;
+      this.#placeNumbers('main-num', 12, 5, 60, 50, 40, 31);
+      this.#placeNumbers('minute-num', 10, 3, 30, 50, 25, 6.5);
+      this.#pauseBtn = registerButton(this.shadowRoot, 'pause-btn', () => this.#toggle());
+      registerButton(this.shadowRoot, 'reset-btn', () => this.#reset());
     }
 
     if (this.#startEpoch !== null) {
@@ -89,15 +40,15 @@ class StopwatchClock extends HTMLElement {
       this.#startInterval();
       this.#state = 'running';
     } else {
-      const startTime = this.getAttribute('start-time');
-      const elapsed = this.getAttribute('elapsed');
-      if (startTime) {
-        this.#startEpoch = Number(startTime);
+      const st = this.getAttribute('start-time');
+      const el = this.getAttribute('elapsed');
+      if (st) {
+        this.#startEpoch = Number(st);
         this.#elapsed = Date.now() - this.#startEpoch;
         this.#startInterval();
         this.#state = 'running';
-      } else if (elapsed) {
-        this.#elapsed = Number(elapsed);
+      } else if (el) {
+        this.#elapsed = Number(el);
         this.#state = 'paused';
       } else {
         this.#state = 'paused';
@@ -107,11 +58,8 @@ class StopwatchClock extends HTMLElement {
     this.#render();
   }
 
-  disconnectedCallback() {
-    this.#stopInterval();
-  }
+  disconnectedCallback() { this.#stopInterval(); }
 
-  /** Re-sync hands and display to the wall clock. */
   sync() {
     if (this.#startEpoch === null) return;
     this.#elapsed = Date.now() - this.#startEpoch;
@@ -119,22 +67,10 @@ class StopwatchClock extends HTMLElement {
     this.#render();
   }
 
-  /**
-   * Position number labels evenly around a dial.
-   *
-   * @param {string} idPrefix  Element ID prefix (e.g. 'main-num' → #main-num-0, #main-num-1 …).
-   * @param {number} count     How many numbers to place.
-   * @param {number} step      Value increment per position (e.g. 5 for 5, 10, 15 …).
-   * @param {number} max       The value shown at 12-o'clock (e.g. 60 wraps 0 → 60).
-   * @param {number} cx        Centre x of the dial.
-   * @param {number} cy        Centre y of the dial.
-   * @param {number} r         Radius at which numbers are placed.
-   */
-  #positionDialNumbers(idPrefix, count, step, max, cx, cy, r) {
+  #placeNumbers(prefix, count, step, max, cx, cy, r) {
     for (let i = 0; i < count; i++) {
-      const el = this.shadowRoot.getElementById(`${idPrefix}-${i}`);
+      const el = this.shadowRoot.getElementById(`${prefix}-${i}`);
       if (!el) continue;
-
       const angle = (i / count) * 2 * Math.PI - Math.PI / 2;
       el.setAttribute('x', (cx + r * Math.cos(angle)).toFixed(2));
       el.setAttribute('y', (cy + r * Math.sin(angle)).toFixed(2));
@@ -142,29 +78,6 @@ class StopwatchClock extends HTMLElement {
     }
   }
 
-  /**
-   * Compute the current second-hand angle from elapsed milliseconds.
-   * @returns {number} Degrees (0–360).
-   */
-  #secondHandDeg() {
-    return (this.#elapsed % SECOND_REVOLUTION_MS) / SECOND_REVOLUTION_MS * 360;
-  }
-
-  /**
-   * Compute the current minute-hand angle from elapsed milliseconds.
-   * @returns {number} Degrees (0–360).
-   */
-  #minuteHandDeg() {
-    return (this.#elapsed % MINUTE_REVOLUTION_MS) / MINUTE_REVOLUTION_MS * 360;
-  }
-
-  /**
-   * Set a hand's --start custom property and restart the CSS animation
-   * from the given angle. Kill animation → set --start → force reflow →
-   * re-enable animation.
-   * @param {SVGElement} hand
-   * @param {number} deg
-   */
   #initHand(hand, deg) {
     hand.style.animation = 'none';
     void this.shadowRoot.host.offsetWidth;
@@ -172,39 +85,28 @@ class StopwatchClock extends HTMLElement {
     hand.style.animation = '';
   }
 
-  /**
-   * Initialise both hands to their current elapsed positions.
-   */
   #initHands() {
-    this.#initHand(this.#secondHand, this.#secondHandDeg());
-    this.#initHand(this.#minuteHand, this.#minuteHandDeg());
+    this.#initHand(this.#secondHand, (this.#elapsed % SECOND_REV) / SECOND_REV * 360);
+    this.#initHand(this.#minuteHand, (this.#elapsed % MINUTE_REV) / MINUTE_REV * 360);
   }
 
   #startInterval() {
     if (this.#intervalId !== null) return;
-
-    // (Re)start the CSS sweep animations from current positions
     this.#initHands();
-
     this.#intervalId = setInterval(() => this.#tick(), 100);
   }
 
   #stopInterval() {
-    if (this.#intervalId !== null) {
-      clearInterval(this.#intervalId);
-      this.#intervalId = null;
-    }
+    if (this.#intervalId !== null) { clearInterval(this.#intervalId); this.#intervalId = null; }
   }
 
-  #togglePause() {
+  #toggle() {
     if (this.#state === 'running') {
       this.#stopInterval();
       this.#initHands();
       this.#startEpoch = null;
       this.removeAttribute('start-time');
-      if (this.#elapsed > 0) {
-        this.setAttribute('elapsed', String(this.#elapsed));
-      }
+      if (this.#elapsed > 0) this.setAttribute('elapsed', String(this.#elapsed));
       this.#state = 'paused';
     } else {
       this.#startEpoch = Date.now() - this.#elapsed;
@@ -227,35 +129,30 @@ class StopwatchClock extends HTMLElement {
   }
 
   #tick() {
-    if (this.#startEpoch !== null) {
-      this.#elapsed = Date.now() - this.#startEpoch;
-    }
+    if (this.#startEpoch !== null) this.#elapsed = Date.now() - this.#startEpoch;
     this.#render();
   }
 
   #render() {
-    const totalSeconds = Math.floor(this.#elapsed / 1000);
+    const total = Math.floor(this.#elapsed / 1000);
     const ds = Math.floor((this.#elapsed % 1000) / 100);
-    const seconds = totalSeconds % 60;
-    const totalMinutes = Math.floor(totalSeconds / 60);
-    const minutes = totalMinutes % 60;
-    const hours = Math.floor(totalMinutes / 60);
+    const s = total % 60;
+    const totalMin = Math.floor(total / 60);
+    const m = totalMin % 60;
+    const h = Math.floor(totalMin / 60);
 
-    let text;
-    let datetime;
-    if (hours > 0) {
-      text = `${hours}:${String(minutes).padStart(2, '0')}:${String(seconds).padStart(2, '0')}.${ds}`;
-      datetime = `PT${hours}H${minutes}M${seconds}.${ds}S`;
-    } else {
-      text = `${minutes}:${String(seconds).padStart(2, '0')}.${ds}`;
-      datetime = `PT${minutes}M${seconds}.${ds}S`;
-    }
+    const text = h > 0
+      ? `${h}:${String(m).padStart(2, '0')}:${String(s).padStart(2, '0')}.${ds}`
+      : `${m}:${String(s).padStart(2, '0')}.${ds}`;
+    const datetime = h > 0
+      ? `PT${h}H${m}M${s}.${ds}S`
+      : `PT${m}M${s}.${ds}S`;
 
     this.#timeEl.textContent = text;
     this.#timeEl.setAttribute('datetime', datetime);
   }
 
-  #updatePauseButton() {
+  #updateBtn() {
     if (this.#state === 'running') {
       this.#pauseBtn.textContent = '⏸︎';
       this.#pauseBtn.title = 'Pause stopwatch';
