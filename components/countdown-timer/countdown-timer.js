@@ -151,7 +151,7 @@ class CountdownTimer extends HTMLElement {
     const durationInput = this.shadowRoot.getElementById('setting-duration');
     const customChip = this.shadowRoot.getElementById('custom-chip');
     const customFields = this.shadowRoot.querySelector('.custom-fields');
-    const presetChips = this.shadowRoot.querySelectorAll('.preset-chip[data-duration]');
+    const presetChips = this.shadowRoot.querySelectorAll('.preset-chips>button[data-duration]');
 
     if (durationInput) {
       durationInput.value = this.getAttribute('duration') ?? '300';

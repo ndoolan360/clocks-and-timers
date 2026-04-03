@@ -391,7 +391,7 @@ class PomodoroTimer extends HTMLElement {
 
     const customChip = this.shadowRoot.getElementById('custom-chip');
     const customFields = this.shadowRoot.querySelector('.custom-fields');
-    const presets = this.shadowRoot.querySelectorAll('.preset-chip[data-work]');
+    const presets = this.shadowRoot.querySelectorAll('.preset-chips>button[data-work]');
 
     this.#sbInput = sbi;
     this.#sbLabel = this.shadowRoot.getElementById('short-break-label');
