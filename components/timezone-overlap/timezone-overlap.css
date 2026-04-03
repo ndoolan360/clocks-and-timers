@@ -1,3 +1,40 @@
+/* ── SVG layout ── */
+
+/* In-flow so it can flex-grow alongside the HTML legend below it.
+   aspect-ratio: 1/1 keeps it square; margin gives the inset appearance. */
+#overlap-svg {
+  display: block;
+  flex: 1 1 0;
+  min-height: 0;
+  min-width: 0;
+  aspect-ratio: 1 / 1;
+  margin: 1rem 1rem 0 1rem;
+}
+
+/* ── Rings — stroke-width driven by data-count on the SVG ── */
+
+.ring-bg,
+.ring-arc {
+  stroke-width: 5;
+}
+
+/* default: 4 timezones */
+
+#overlap-svg[data-count="1"] .ring-bg,
+#overlap-svg[data-count="1"] .ring-arc {
+  stroke-width: 8;
+}
+
+#overlap-svg[data-count="2"] .ring-bg,
+#overlap-svg[data-count="2"] .ring-arc {
+  stroke-width: 6;
+}
+
+#overlap-svg[data-count="3"] .ring-bg,
+#overlap-svg[data-count="3"] .ring-arc {
+  stroke-width: 5.5;
+}
+
 /* ── Clock face ── */
 
 .face-ring {
@@ -9,21 +46,21 @@
 
 /*
  * Pre-computed dasharray values (no calc() in stroke-dasharray for Firefox).
- * r=36, C=2π×36≈226.195, hour=C/24≈9.425, quarter=C/4≈56.549
- * minor gap = hour − 0.5 = 8.925,  minor last = hour = 9.425
- * major gap = quarter − 0.8 = 55.749
+ * r=42, C=2π×42≈263.894, hour=C/24≈10.996, quarter=C/4≈65.973
+ * minor gap = hour − 0.5 = 10.496,  minor last = hour = 10.996
+ * major gap = quarter − 0.8 = 65.173
  */
 
 .tick-ring {
   fill: none;
   stroke: var(--foreground, #DDD);
   stroke-linecap: butt;
-  transform-origin: 50px 42px;
+  transform-origin: 50px 50px;
 }
 
 .tick-minor {
-  --gap: 8.925;
-  --last: 9.425;
+  --gap: 10.496;
+  --last: 10.996;
   stroke-width: 2px;
   stroke-dashoffset: -0.25;
   stroke-dasharray: 0 var(--gap) 0.5 var(--gap) 0.5 var(--gap) 0.5 var(--gap) 0.5 var(--gap) 0.5 var(--last);
@@ -31,7 +68,7 @@
 }
 
 .tick-major {
-  --gap: 55.749;
+  --gap: 65.173;
   stroke-width: 3px;
   stroke-dashoffset: 0.4;
   stroke-dasharray: 0.8 var(--gap);
@@ -59,11 +96,36 @@
 
 /* ── Legend ── */
 
+#tz-legend {
+  flex: 0 0 auto;
+  display: flex;
+  flex-direction: column;
+  gap: 0.2rem;
+  padding: 0.5rem 1rem 1rem 1rem;
+  width: 100%;
+  box-sizing: border-box;
+}
+
+.legend-row {
+  display: flex;
+  align-items: center;
+  gap: 0.375rem;
+}
+
+.legend-swatch {
+  width: 0.5rem;
+  height: 0.5rem;
+  border-radius: 2px;
+  flex-shrink: 0;
+}
+
 .legend-text {
-  fill: var(--foreground, #DDD);
-  font-size: 3.2px;
-  dominant-baseline: middle;
+  font-size: 0.7rem;
+  color: var(--foreground, #DDD);
   opacity: 0.85;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
 }
 
 /* ── Settings slots ── */

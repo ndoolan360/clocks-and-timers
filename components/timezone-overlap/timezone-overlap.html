@@ -104,54 +104,52 @@
     </label>
   </div>
 
-  <svg id="overlap-svg" viewBox="0 0 100 100" role="img" aria-label="Timezone overlap" class="inset-svg">
-    <circle cx="50" cy="42" r="36" class="face-ring" />
-    <circle cx="50" cy="42" r="36" class="tick-ring tick-minor" />
-    <circle cx="50" cy="42" r="36" class="tick-ring tick-major" />
-    <text x="50" y="2" class="hour-label" text-anchor="middle" dominant-baseline="middle">24</text>
-    <text x="90" y="42" class="hour-label" text-anchor="middle" dominant-baseline="middle">6</text>
-    <text x="50" y="82" class="hour-label" text-anchor="middle" dominant-baseline="middle">12</text>
-    <text x="10" y="42" class="hour-label" text-anchor="middle" dominant-baseline="middle">18</text>
+  <svg id="overlap-svg" viewBox="0 0 100 100" role="img" aria-label="Timezone overlap">
+    <circle cx="50" cy="50" r="42" class="face-ring" />
+    <circle cx="50" cy="50" r="42" class="tick-ring tick-minor" />
+    <circle cx="50" cy="50" r="42" class="tick-ring tick-major" />
+    <text x="50" y="4" class="hour-label" text-anchor="middle" dominant-baseline="middle">24</text>
+    <text x="96" y="50" class="hour-label" text-anchor="middle" dominant-baseline="middle">6</text>
+    <text x="50" y="96" class="hour-label" text-anchor="middle" dominant-baseline="middle">12</text>
+    <text x="4" y="50" class="hour-label" text-anchor="middle" dominant-baseline="middle">18</text>
 
     <g id="ring-0">
-      <circle id="ring-bg-0" cx="50" cy="42" fill="none" stroke-opacity="0.15" />
-      <path id="ring-arc-0a" fill="none" stroke-linecap="round" />
-      <path id="ring-arc-0b" fill="none" stroke-linecap="round" hidden />
+      <circle id="ring-bg-0" cx="50" cy="50" r="36" class="ring-bg" fill="none" stroke-opacity="0.15" />
+      <path id="ring-arc-0" class="ring-arc" fill="none" stroke-linecap="round" />
     </g>
     <g id="ring-1" hidden>
-      <circle id="ring-bg-1" cx="50" cy="42" fill="none" stroke-opacity="0.15" />
-      <path id="ring-arc-1a" fill="none" stroke-linecap="round" />
-      <path id="ring-arc-1b" fill="none" stroke-linecap="round" hidden />
+      <circle id="ring-bg-1" cx="50" cy="50" r="27" class="ring-bg" fill="none" stroke-opacity="0.15" />
+      <path id="ring-arc-1" class="ring-arc" fill="none" stroke-linecap="round" />
     </g>
     <g id="ring-2" hidden>
-      <circle id="ring-bg-2" cx="50" cy="42" fill="none" stroke-opacity="0.15" />
-      <path id="ring-arc-2a" fill="none" stroke-linecap="round" />
-      <path id="ring-arc-2b" fill="none" stroke-linecap="round" hidden />
+      <circle id="ring-bg-2" cx="50" cy="50" r="18" class="ring-bg" fill="none" stroke-opacity="0.15" />
+      <path id="ring-arc-2" class="ring-arc" fill="none" stroke-linecap="round" />
     </g>
     <g id="ring-3" hidden>
-      <circle id="ring-bg-3" cx="50" cy="42" fill="none" stroke-opacity="0.15" />
-      <path id="ring-arc-3a" fill="none" stroke-linecap="round" />
-      <path id="ring-arc-3b" fill="none" stroke-linecap="round" hidden />
+      <circle id="ring-bg-3" cx="50" cy="50" r="9" class="ring-bg" fill="none" stroke-opacity="0.15" />
+      <path id="ring-arc-3" class="ring-arc" fill="none" stroke-linecap="round" />
     </g>
 
-    <g id="legend-0">
-      <rect id="legend-swatch-0" x="6" y="82" width="2.5" height="2.5" rx="0.5" />
-      <text id="legend-text-0" x="10.5" y="84" class="legend-text" />
-    </g>
-    <g id="legend-1" hidden>
-      <rect id="legend-swatch-1" x="6" y="86.8" width="2.5" height="2.5" rx="0.5" />
-      <text id="legend-text-1" x="10.5" y="88.8" class="legend-text" />
-    </g>
-    <g id="legend-2" hidden>
-      <rect id="legend-swatch-2" x="6" y="91.6" width="2.5" height="2.5" rx="0.5" />
-      <text id="legend-text-2" x="10.5" y="93.6" class="legend-text" />
-    </g>
-    <g id="legend-3" hidden>
-      <rect id="legend-swatch-3" x="6" y="96.4" width="2.5" height="2.5" rx="0.5" />
-      <text id="legend-text-3" x="10.5" y="98.4" class="legend-text" />
-    </g>
-
-    <line id="now-hand" x1="50" y1="42" class="now-hand" />
-    <circle id="center-dot" cx="50" cy="42" r="1.5" class="center-dot" />
+    <line id="now-hand" x1="50" y1="50" class="now-hand" />
+    <circle id="center-dot" cx="50" cy="50" r="1.5" class="center-dot" />
   </svg>
+
+  <div id="tz-legend">
+    <div id="legend-0" class="legend-row">
+      <span id="legend-swatch-0" class="legend-swatch"></span>
+      <span id="legend-text-0" class="legend-text"></span>
+    </div>
+    <div id="legend-1" class="legend-row" hidden>
+      <span id="legend-swatch-1" class="legend-swatch"></span>
+      <span id="legend-text-1" class="legend-text"></span>
+    </div>
+    <div id="legend-2" class="legend-row" hidden>
+      <span id="legend-swatch-2" class="legend-swatch"></span>
+      <span id="legend-text-2" class="legend-text"></span>
+    </div>
+    <div id="legend-3" class="legend-row" hidden>
+      <span id="legend-swatch-3" class="legend-swatch"></span>
+      <span id="legend-text-3" class="legend-text"></span>
+    </div>
+  </div>
 </div>
