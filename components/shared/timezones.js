@@ -78,6 +78,22 @@ function gmtOffset(timeZone, date) {
 // ---------------------------------------------------------------------------
 
 /**
+ * Returns the UTC offset for an IANA timezone in decimal hours (e.g. 5.5 for UTC+5:30).
+ * Pass an empty string or omit iana for the local timezone.
+ * @param {string} iana  IANA timezone identifier, or "" for local.
+ * @param {Date}   now
+ * @returns {number}
+ */
+export function utcOffsetHours(iana, now) {
+  if (!iana) return -now.getTimezoneOffset() / 60;
+  const raw = gmtOffset(iana, now);
+  if (raw === "GMT") return 0;
+  const m = raw.match(/GMT([+-])(\d{1,2})(?::(\d{2}))?/);
+  if (!m) return 0;
+  return (m[1] === "+" ? 1 : -1) * (parseInt(m[2]) + parseInt(m[3] ?? "0") / 60);
+}
+
+/**
  * Resolve the current UTC offset string for a given IANA timezone.
  * @param {string} iana  IANA timezone identifier (e.g. "Australia/Sydney").
  * @param {Date}   now

@@ -1,4 +1,4 @@
-import { loadWidgetAsShadow, registerButton } from '../shared/widget.js';
+import { loadWidgetAsShadow, registerButton, toggleHidden } from '../shared/widget.js';
 import { State, isFineGrained, formatTime, setPulseSyncDelay, clearPulseSyncDelay, TickEngine } from '../shared/timer.js';
 
 class CountdownTimer extends HTMLElement {
@@ -189,7 +189,7 @@ class CountdownTimer extends HTMLElement {
     }
     if (matched) {
       customChip?.setAttribute('aria-pressed', 'false');
-      if (fields) fields.hidden = true;
+      if (fields) toggleHidden(fields, true);
     } else {
       this.#showCustom(chips, customChip, fields);
     }
@@ -198,7 +198,7 @@ class CountdownTimer extends HTMLElement {
   #showCustom(chips, customChip, fields) {
     for (const c of chips) c.setAttribute('aria-pressed', 'false');
     customChip?.setAttribute('aria-pressed', 'true');
-    if (fields) fields.hidden = false;
+    if (fields) toggleHidden(fields, false);
   }
 }
 

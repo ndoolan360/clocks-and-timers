@@ -250,6 +250,13 @@
   gap: 0.625rem;
 }
 
+/* ---- Widget SVG ---- */
+
+.inset-svg {
+  position: absolute;
+  inset: 1rem;
+}
+
 /* ---- Utilities ---- */
 
 [hidden] {

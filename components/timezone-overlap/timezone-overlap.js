@@ -1,5 +1,5 @@
-import { loadWidgetAsShadow } from '../shared/widget.js';
-import { buildTimezoneSelectOptions, getTimeParts } from '../shared/timezones.js';
+import { loadWidgetAsShadow, toggleHidden } from '../shared/widget.js';
+import { buildTimezoneSelectOptions, getTimeParts, utcOffsetHours } from '../shared/timezones.js';
 
 // ── Layout constants ──────────────────────────────────────────────────────────
 const CX = 50, CY = 42;   // Clock centre (matches HTML)
@@ -43,26 +43,7 @@ function arcD(r, h1, h2) {
   return `M${x1.toFixed(2)},${y1.toFixed(2)} A${r},${r} 0 ${large},1 ${x2.toFixed(2)},${y2.toFixed(2)}`;
 }
 
-// SVG elements don't have the HTMLElement.hidden IDL attribute, so use
-// setAttribute/removeAttribute directly instead of the .hidden property.
-function toggleHidden(el, hide) {
-  if (hide) el.setAttribute('hidden', '');
-  else el.removeAttribute('hidden');
-}
-
 // ── Timezone math ─────────────────────────────────────────────────────────────
-
-// Returns the UTC offset for an IANA timezone in decimal hours (e.g. 5.5 for UTC+5:30).
-function utcOffsetHours(iana, now) {
-  if (!iana) return -now.getTimezoneOffset() / 60;
-  const raw = new Intl.DateTimeFormat('en-US', { timeZone: iana, timeZoneName: 'longOffset' })
-    .formatToParts(now)
-    .find(p => p.type === 'timeZoneName')?.value ?? 'GMT';
-  if (raw === 'GMT') return 0;
-  const m = raw.match(/GMT([+-])(\d{1,2})(?::(\d{2}))?/);
-  if (!m) return 0;
-  return (m[1] === '+' ? 1 : -1) * (parseInt(m[2]) + parseInt(m[3] ?? '0') / 60);
-}
 
 // Converts [workStart, workEnd] in `iana` to local-timezone hours.
 // The returned `end` may exceed 24 when the arc crosses midnight in local time.

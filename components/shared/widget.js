@@ -46,6 +46,18 @@ function registerRemoveButton(shadowRoot) {
 }
 
 /**
+ * Toggles the hidden attribute on an element.
+ * Uses setAttribute/removeAttribute instead of the .hidden property so that it
+ * works correctly on SVG elements, which don't implement HTMLElement.hidden.
+ * @param {Element} el
+ * @param {boolean} hide
+ */
+export function toggleHidden(el, hide) {
+  if (hide) el.setAttribute('hidden', '');
+  else el.removeAttribute('hidden');
+}
+
+/**
  * Register's a buttons click event and enables it
  * @param {ShadowRoot} shadowRoot
  * @param {string} btnId
