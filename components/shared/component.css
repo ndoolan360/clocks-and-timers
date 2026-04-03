@@ -28,13 +28,17 @@
   z-index: 1;
   margin: 0;
   opacity: 0;
-  transition: opacity var(--transition-duration, 0.2s) ease;
+  pointer-events: none;
+  transition:
+    opacity var(--transition-duration, 0.2s) ease,
+    pointer-events 0.6s allow-discrete;
 }
 
 :host(:hover) .component-controls,
 :host(:focus-within) .component-controls,
 .wrapper:has([popover]:popover-open) .component-controls {
   opacity: 1;
+  pointer-events: auto;
 }
 
 .component-controls>fieldset {
