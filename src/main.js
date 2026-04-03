@@ -2,6 +2,7 @@ import '../components/analog-clock/analog-clock.js';
 import '../components/countdown-timer/countdown-timer.js';
 import '../components/pomodoro-timer/pomodoro-timer.js';
 import '../components/stopwatch-clock/stopwatch-clock.js';
+import '../components/timezone-overlap/timezone-overlap.js';
 import {
   unlockAudio,
   registerAlarmStartEvents,
@@ -28,6 +29,7 @@ export const WIDGETS = [
     attributes: ['work', 'short-break', 'long-break', 'rounds', 'start-time', 'elapsed', 'state'],
   },
   { tag: 'stopwatch-clock', attributes: ['start-time', 'elapsed', 'state'] },
+  { tag: 'timezone-overlap', attributes: ['timezones'] },
 ]
 
 // The <ul> container for the list of widgets.

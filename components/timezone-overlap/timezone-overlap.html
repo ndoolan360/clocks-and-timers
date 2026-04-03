@@ -1,0 +1,19 @@
+<div class="wrapper">
+  <form class="component-controls">
+    <fieldset>
+      <legend class="sr-only">Timezone Overlap Controls</legend>
+      <button id="settings-btn" type="button" title="Timezone overlap settings" aria-label="Timezone overlap settings" popovertarget="settings-popover">⚙️</button>
+      <button id="remove-btn" type="button" title="Remove timezone overlap" aria-label="Remove timezone overlap" disabled>🗑️</button>
+    </fieldset>
+  </form>
+  <div id="settings-popover" popover="auto">
+    <button class="popover-close" type="button" popovertarget="settings-popover" popovertargetaction="hide" title="Close" aria-label="Close">✕</button>
+    <div id="tz-slots"></div>
+    <label class="label">
+      <div class="preset-chips">
+        <button type="button" id="add-tz-btn">+ Add timezone</button>
+      </div>
+    </label>
+  </div>
+  <svg id="overlap-svg" viewBox="0 0 100 100" role="img" aria-label="Timezone overlap"></svg>
+</div>
