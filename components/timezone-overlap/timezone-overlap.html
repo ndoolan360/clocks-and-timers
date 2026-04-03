@@ -2,18 +2,156 @@
   <form class="component-controls">
     <fieldset>
       <legend class="sr-only">Timezone Overlap Controls</legend>
-      <button id="settings-btn" type="button" title="Timezone overlap settings" aria-label="Timezone overlap settings" popovertarget="settings-popover">⚙️</button>
-      <button id="remove-btn" type="button" title="Remove timezone overlap" aria-label="Remove timezone overlap" disabled>🗑️</button>
+      <button id="settings-btn" type="button" title="Timezone overlap settings" aria-label="Timezone overlap settings"
+        popovertarget="settings-popover">⚙️</button>
+      <button id="remove-btn" type="button" title="Remove timezone overlap" aria-label="Remove timezone overlap"
+        disabled>🗑️</button>
     </fieldset>
   </form>
+
   <div id="settings-popover" popover="auto">
-    <button class="popover-close" type="button" popovertarget="settings-popover" popovertargetaction="hide" title="Close" aria-label="Close">✕</button>
-    <div id="tz-slots"></div>
+    <button class="popover-close" type="button" popovertarget="settings-popover" popovertargetaction="hide"
+      title="Close" aria-label="Close">✕</button>
+
+    <div class="tz-slot" id="tz-slot-0">
+      <span class="tz-swatch" id="tz-swatch-0"></span>
+      <div class="tz-fields">
+        <label class="label">
+          <span>Timezone 1</span>
+          <select id="tz-select-0">
+            <option value="">Local</option>
+          </select>
+        </label>
+        <label class="label">
+          <span>Work hours</span>
+          <div class="work-hours">
+            <input id="tz-start-0" type="number" min="0" max="23" value="9" />
+            <span>–</span>
+            <input id="tz-end-0" type="number" min="1" max="24" value="17" />
+          </div>
+        </label>
+      </div>
+      <button type="button" class="remove-tz" id="tz-remove-0" title="Remove timezone" hidden>×</button>
+    </div>
+
+    <div class="tz-slot" id="tz-slot-1" hidden>
+      <span class="tz-swatch" id="tz-swatch-1"></span>
+      <div class="tz-fields">
+        <label class="label">
+          <span>Timezone 2</span>
+          <select id="tz-select-1">
+            <option value="">Local</option>
+          </select>
+        </label>
+        <label class="label">
+          <span>Work hours</span>
+          <div class="work-hours">
+            <input id="tz-start-1" type="number" min="0" max="23" value="9" />
+            <span>–</span>
+            <input id="tz-end-1" type="number" min="1" max="24" value="17" />
+          </div>
+        </label>
+      </div>
+      <button type="button" class="remove-tz" id="tz-remove-1" title="Remove timezone">×</button>
+    </div>
+
+    <div class="tz-slot" id="tz-slot-2" hidden>
+      <span class="tz-swatch" id="tz-swatch-2"></span>
+      <div class="tz-fields">
+        <label class="label">
+          <span>Timezone 3</span>
+          <select id="tz-select-2">
+            <option value="">Local</option>
+          </select>
+        </label>
+        <label class="label">
+          <span>Work hours</span>
+          <div class="work-hours">
+            <input id="tz-start-2" type="number" min="0" max="23" value="9" />
+            <span>–</span>
+            <input id="tz-end-2" type="number" min="1" max="24" value="17" />
+          </div>
+        </label>
+      </div>
+      <button type="button" class="remove-tz" id="tz-remove-2" title="Remove timezone">×</button>
+    </div>
+
+    <div class="tz-slot" id="tz-slot-3" hidden>
+      <span class="tz-swatch" id="tz-swatch-3"></span>
+      <div class="tz-fields">
+        <label class="label">
+          <span>Timezone 4</span>
+          <select id="tz-select-3">
+            <option value="">Local</option>
+          </select>
+        </label>
+        <label class="label">
+          <span>Work hours</span>
+          <div class="work-hours">
+            <input id="tz-start-3" type="number" min="0" max="23" value="9" />
+            <span>–</span>
+            <input id="tz-end-3" type="number" min="1" max="24" value="17" />
+          </div>
+        </label>
+      </div>
+      <button type="button" class="remove-tz" id="tz-remove-3" title="Remove timezone">×</button>
+    </div>
+
     <label class="label">
       <div class="preset-chips">
         <button type="button" id="add-tz-btn">+ Add timezone</button>
       </div>
     </label>
   </div>
-  <svg id="overlap-svg" viewBox="0 0 100 100" role="img" aria-label="Timezone overlap"></svg>
+
+  <svg id="overlap-svg" viewBox="0 0 100 100" role="img" aria-label="Timezone overlap">
+    <circle cx="50" cy="42" r="36" class="face-ring" />
+    <circle cx="50" cy="42" r="36" class="tick-ring tick-minor" />
+    <circle cx="50" cy="42" r="36" class="tick-ring tick-major" />
+    <text x="50" y="2" class="hour-label" text-anchor="middle" dominant-baseline="middle">24</text>
+    <text x="90" y="42" class="hour-label" text-anchor="middle" dominant-baseline="middle">6</text>
+    <text x="50" y="82" class="hour-label" text-anchor="middle" dominant-baseline="middle">12</text>
+    <text x="10" y="42" class="hour-label" text-anchor="middle" dominant-baseline="middle">18</text>
+
+    <g id="ring-0">
+      <circle id="ring-bg-0" cx="50" cy="42" fill="none" stroke-opacity="0.15" />
+      <path id="ring-arc-0a" fill="none" stroke-linecap="round" />
+      <path id="ring-arc-0b" fill="none" stroke-linecap="round" hidden />
+    </g>
+    <g id="ring-1" hidden>
+      <circle id="ring-bg-1" cx="50" cy="42" fill="none" stroke-opacity="0.15" />
+      <path id="ring-arc-1a" fill="none" stroke-linecap="round" />
+      <path id="ring-arc-1b" fill="none" stroke-linecap="round" hidden />
+    </g>
+    <g id="ring-2" hidden>
+      <circle id="ring-bg-2" cx="50" cy="42" fill="none" stroke-opacity="0.15" />
+      <path id="ring-arc-2a" fill="none" stroke-linecap="round" />
+      <path id="ring-arc-2b" fill="none" stroke-linecap="round" hidden />
+    </g>
+    <g id="ring-3" hidden>
+      <circle id="ring-bg-3" cx="50" cy="42" fill="none" stroke-opacity="0.15" />
+      <path id="ring-arc-3a" fill="none" stroke-linecap="round" />
+      <path id="ring-arc-3b" fill="none" stroke-linecap="round" hidden />
+    </g>
+
+    <g id="legend-0">
+      <rect id="legend-swatch-0" x="6" y="82" width="2.5" height="2.5" rx="0.5" />
+      <text id="legend-text-0" x="10.5" y="84" class="legend-text" />
+    </g>
+    <g id="legend-1" hidden>
+      <rect id="legend-swatch-1" x="6" y="86.8" width="2.5" height="2.5" rx="0.5" />
+      <text id="legend-text-1" x="10.5" y="88.8" class="legend-text" />
+    </g>
+    <g id="legend-2" hidden>
+      <rect id="legend-swatch-2" x="6" y="91.6" width="2.5" height="2.5" rx="0.5" />
+      <text id="legend-text-2" x="10.5" y="93.6" class="legend-text" />
+    </g>
+    <g id="legend-3" hidden>
+      <rect id="legend-swatch-3" x="6" y="96.4" width="2.5" height="2.5" rx="0.5" />
+      <text id="legend-text-3" x="10.5" y="98.4" class="legend-text" />
+    </g>
+
+    <line id="now-hand" x1="50" y1="42" class="now-hand" />
+    <circle id="center-dot" cx="50" cy="42" r="1.5" class="center-dot" />
+  </svg>
 </div>

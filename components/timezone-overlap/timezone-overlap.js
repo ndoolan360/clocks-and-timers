@@ -2,9 +2,8 @@ import { loadWidgetAsShadow } from '../shared/widget.js';
 import { buildTimezoneSelectOptions, getTimeParts } from '../shared/timezones.js';
 
 // ── Layout constants ──────────────────────────────────────────────────────────
-const CX = 50, CY = 42;   // Clock centre
-const FACE_R = 36;         // Outer ring radius (tick marks land here)
-const LABEL_R = 40;        // Hour label radius
+const CX = 50, CY = 42;   // Clock centre (matches HTML)
+const FACE_R = 36;         // Outer ring radius (matches HTML)
 const MAX_TZ = 4;
 const COLORS = ['#5580ff', '#ff6b5b', '#3dbe7a', '#e0a84b'];
 
@@ -44,20 +43,11 @@ function arcD(r, h1, h2) {
   return `M${x1.toFixed(2)},${y1.toFixed(2)} A${r},${r} 0 ${large},1 ${x2.toFixed(2)},${y2.toFixed(2)}`;
 }
 
-// Renders arc segment(s) as an SVG string; handles midnight wrap (end > 24).
-function arcSVG(r, start, end, attrs) {
-  if (end - start >= 23.99) {
-    // Full circle
-    return `<circle cx="${CX}" cy="${CY}" r="${r}" fill="none" ${attrs}/>`;
-  }
-  if (end <= 24) {
-    return `<path d="${arcD(r, start, end)}" fill="none" ${attrs}/>`;
-  }
-  // Crosses midnight: two segments
-  return (
-    `<path d="${arcD(r, start, 23.9999)}" fill="none" ${attrs}/>` +
-    `<path d="${arcD(r, 0.0001, end - 24)}" fill="none" ${attrs}/>`
-  );
+// SVG elements don't have the HTMLElement.hidden IDL attribute, so use
+// setAttribute/removeAttribute directly instead of the .hidden property.
+function toggleHidden(el, hide) {
+  if (hide) el.setAttribute('hidden', '');
+  else el.removeAttribute('hidden');
 }
 
 // ── Timezone math ─────────────────────────────────────────────────────────────
@@ -94,7 +84,13 @@ function ianaToCity(iana) {
 // ── Custom element ────────────────────────────────────────────────────────────
 class TimezoneOverlap extends HTMLElement {
   #intervalId = null;
-  #svg = null;
+
+  // Cached element references (populated once in connectedCallback)
+  #rings = [];  // [{ group, bg, arc0, arc1 }, ...]
+  #legends = [];  // [{ group, swatch, text }, ...]
+  #slots = [];  // [{ slot, swatch, select, start, end, remove }, ...]
+  #nowHand = null;
+  #addTzBtn = null;
 
   static observedAttributes = ['timezones'];
 
@@ -115,10 +111,44 @@ class TimezoneOverlap extends HTMLElement {
         new URL('../shared/component.css', import.meta.url),
         new URL('./timezone-overlap.css', import.meta.url),
       );
-      this.#svg = this.shadowRoot.getElementById('overlap-svg');
-      this.#buildStaticSVG();
+
+      // Cache element references
+      for (let i = 0; i < MAX_TZ; i++) {
+        this.#rings.push({
+          group: this.shadowRoot.getElementById(`ring-${i}`),
+          bg: this.shadowRoot.getElementById(`ring-bg-${i}`),
+          arc0: this.shadowRoot.getElementById(`ring-arc-${i}a`),
+          arc1: this.shadowRoot.getElementById(`ring-arc-${i}b`),
+        });
+        this.#legends.push({
+          group: this.shadowRoot.getElementById(`legend-${i}`),
+          swatch: this.shadowRoot.getElementById(`legend-swatch-${i}`),
+          text: this.shadowRoot.getElementById(`legend-text-${i}`),
+        });
+        this.#slots.push({
+          slot: this.shadowRoot.getElementById(`tz-slot-${i}`),
+          swatch: this.shadowRoot.getElementById(`tz-swatch-${i}`),
+          select: this.shadowRoot.getElementById(`tz-select-${i}`),
+          start: this.shadowRoot.getElementById(`tz-start-${i}`),
+          end: this.shadowRoot.getElementById(`tz-end-${i}`),
+          remove: this.shadowRoot.getElementById(`tz-remove-${i}`),
+        });
+
+        // Apply static colours
+        const color = COLORS[i];
+        this.#rings[i].bg.setAttribute('stroke', color);
+        this.#rings[i].arc0.setAttribute('stroke', color);
+        this.#rings[i].arc1.setAttribute('stroke', color);
+        this.#legends[i].swatch.setAttribute('fill', color);
+        this.#slots[i].swatch.style.background = color;
+      }
+
+      this.#nowHand = this.shadowRoot.getElementById('now-hand');
+      this.#addTzBtn = this.shadowRoot.getElementById('add-tz-btn');
+
       this.#initSettings();
     }
+
     this.sync();
     this.#intervalId = setInterval(() => this.#render(), 60_000);
   }
@@ -136,89 +166,101 @@ class TimezoneOverlap extends HTMLElement {
 
   sync() { this.#render(); }
 
-  // ── Static SVG (clock face, ticks, labels) ──
-  #buildStaticSVG() {
-    let html = '';
-
-    // Outer clock face ring
-    html += `<circle cx="${CX}" cy="${CY}" r="${FACE_R}" class="face-ring"/>`;
-
-    // 24 tick marks
-    for (let h = 0; h < 24; h++) {
-      const major = h % 6 === 0;
-      const r0 = FACE_R - (major ? 4 : 2);
-      const [x1, y1] = polarXY(r0, h);
-      const [x2, y2] = polarXY(FACE_R, h);
-      html += `<line x1="${x1.toFixed(2)}" y1="${y1.toFixed(2)}" x2="${x2.toFixed(2)}" y2="${y2.toFixed(2)}" class="tick${major ? ' tick-major' : ''}"/>`;
-    }
-
-    // Hour labels at 0, 6, 12, 18
-    for (const [h, label] of [[0, '24'], [6, '6'], [12, '12'], [18, '18']]) {
-      const [lx, ly] = polarXY(LABEL_R, h);
-      html += `<text x="${lx.toFixed(2)}" y="${ly.toFixed(2)}" class="hour-label" text-anchor="middle" dominant-baseline="middle">${label}</text>`;
-    }
-
-    // Placeholder for dynamic content
-    html += `<g id="dyn"></g>`;
-
-    this.#svg.innerHTML = html;
-  }
-
-  // ── Dynamic SVG (rings, now-hand, legend) ──
+  // ── Render (updates element attributes, not DOM structure) ──
   #render() {
     const now = new Date();
     const configs = this.#configs.slice(0, MAX_TZ);
     const n = configs.length;
-    const rings = RING_PARAMS[n] ?? RING_PARAMS[1];
+    const params = RING_PARAMS[n] ?? RING_PARAMS[1];
 
-    // Convert each timezone's work hours to local-time arcs
     const localRanges = configs.map(({ iana, workStart, workEnd }) =>
       toLocalHours(iana, workStart, workEnd, now)
     );
 
-    let html = '';
+    for (let i = 0; i < MAX_TZ; i++) {
+      const active = i < n;
+      toggleHidden(this.#rings[i].group, !active);
+      toggleHidden(this.#legends[i].group, !active);
+      if (!active) continue;
 
-    // ── Timezone rings ──
-    for (let i = 0; i < n; i++) {
-      const color = COLORS[i];
-      const { r, sw } = rings[i];
+      const { r, sw } = params[i];
       const { start, end } = localRanges[i];
-      const strokeAttrs = `stroke="${color}" stroke-width="${sw}"`;
+      const { bg, arc0, arc1 } = this.#rings[i];
 
-      // Full dim ring (non-working hours)
-      html += `<circle cx="${CX}" cy="${CY}" r="${r}" fill="none" ${strokeAttrs} stroke-opacity="0.15"/>`;
-      // Bright working-hours arc
-      html += arcSVG(r, start, end, `${strokeAttrs} stroke-linecap="round"`);
-    }
+      bg.setAttribute('r', r);
+      bg.setAttribute('stroke-width', sw);
+      arc0.setAttribute('stroke-width', sw);
+      arc1.setAttribute('stroke-width', sw);
 
-    // ── Now hand ──
-    const { h: nowH, m: nowM } = getTimeParts(now, undefined);
-    const nowFrac = nowH + nowM / 60;
-    const [hx, hy] = polarXY(FACE_R - 2, nowFrac);
-    html += `<line x1="${CX}" y1="${CY}" x2="${hx.toFixed(2)}" y2="${hy.toFixed(2)}" class="now-hand"/>`;
-    html += `<circle cx="${CX}" cy="${CY}" r="1.5" class="center-dot"/>`;
+      if (end - start >= 23.99) {
+        // Full circle: dim ring is already showing; no arc needed
+        toggleHidden(arc0, true);
+        toggleHidden(arc1, true);
+        bg.setAttribute('stroke-opacity', '1');
+      } else if (end <= 24) {
+        arc0.setAttribute('d', arcD(r, start, end));
+        toggleHidden(arc0, false);
+        toggleHidden(arc1, true);
+        bg.setAttribute('stroke-opacity', '0.15');
+      } else {
+        // Crosses midnight: two arc segments
+        arc0.setAttribute('d', arcD(r, start, 23.9999));
+        toggleHidden(arc0, false);
+        arc1.setAttribute('d', arcD(r, 0.0001, end - 24));
+        toggleHidden(arc1, false);
+        bg.setAttribute('stroke-opacity', '0.15');
+      }
 
-    // ── Legend (bottom of SVG) ──
-    const LEG_Y = 84;
-    const LEG_LINE = 4.8;
-    for (let i = 0; i < n; i++) {
+      // Legend
       const { iana, workStart, workEnd } = configs[i];
-      const color = COLORS[i];
       const { h: th, m: tm } = getTimeParts(now, iana || undefined);
       const time = `${String(th).padStart(2, '0')}:${String(tm).padStart(2, '0')}`;
-      const city = ianaToCity(iana);
-      const y = LEG_Y + i * LEG_LINE;
-
-      html += `<rect x="6" y="${(y - 2).toFixed(1)}" width="2.5" height="2.5" fill="${color}" rx="0.5"/>`;
-      html += `<text x="10.5" y="${y.toFixed(1)}" class="legend-text">${city} · ${time} (${workStart}–${workEnd})</text>`;
+      this.#legends[i].text.textContent = `${ianaToCity(iana)} · ${time} (${workStart}–${workEnd})`;
     }
 
-    this.#svg.getElementById('dyn').innerHTML = html;
+    // Now hand
+    const { h: nowH, m: nowM } = getTimeParts(now, undefined);
+    const [hx, hy] = polarXY(FACE_R - 2, nowH + nowM / 60);
+    this.#nowHand.setAttribute('x2', hx.toFixed(2));
+    this.#nowHand.setAttribute('y2', hy.toFixed(2));
   }
 
   // ── Settings ──
   #initSettings() {
-    this.shadowRoot.getElementById('add-tz-btn').addEventListener('click', () => {
+    const tzOptions = buildTimezoneSelectOptions();
+
+    for (let i = 0; i < MAX_TZ; i++) {
+      const { select, start, end, remove } = this.#slots[i];
+
+      // Populate timezone options (HTML already has the "Local" option first)
+      for (const { label, value } of tzOptions) {
+        const opt = document.createElement('option');
+        opt.value = value;
+        opt.textContent = label;
+        select.appendChild(opt);
+      }
+
+      select.addEventListener('input', () => {
+        const configs = this.#configs;
+        configs[i] = { ...configs[i], iana: select.value };
+        this.#save(configs);
+      });
+      start.addEventListener('input', () => {
+        const configs = this.#configs;
+        configs[i] = { ...configs[i], workStart: parseInt(start.value) || 0 };
+        this.#save(configs);
+      });
+      end.addEventListener('input', () => {
+        const configs = this.#configs;
+        configs[i] = { ...configs[i], workEnd: parseInt(end.value) || 17 };
+        this.#save(configs);
+      });
+      remove.addEventListener('click', () => {
+        this.#save(this.#configs.filter((_, j) => j !== i));
+      });
+    }
+
+    this.#addTzBtn.addEventListener('click', () => {
       const configs = this.#configs;
       if (configs.length >= MAX_TZ) return;
       configs.push({ iana: 'Europe/London', workStart: 9, workEnd: 17 });
@@ -234,101 +276,34 @@ class TimezoneOverlap extends HTMLElement {
 
   #syncSettingsUI() {
     if (!this.shadowRoot) return;
-    const slotsDiv = this.shadowRoot.getElementById('tz-slots');
-    const addBtn = this.shadowRoot.getElementById('add-tz-btn');
     const configs = this.#configs;
+    const n = configs.length;
     const tzOptions = buildTimezoneSelectOptions();
 
-    slotsDiv.innerHTML = '';
+    for (let i = 0; i < MAX_TZ; i++) {
+      const { slot, select, start, end, remove } = this.#slots[i];
+      const active = i < n;
+      slot.hidden = !active;
+      if (!active) continue;
 
-    configs.slice(0, MAX_TZ).forEach((cfg, i) => {
-      const row = document.createElement('div');
-      row.className = 'tz-slot';
+      const cfg = configs[i];
 
-      // Colour swatch
-      const swatch = document.createElement('span');
-      swatch.className = 'tz-swatch';
-      swatch.style.background = COLORS[i];
-      row.appendChild(swatch);
-
-      const fields = document.createElement('div');
-      fields.className = 'tz-fields';
-
-      // Timezone select
-      const tzLbl = document.createElement('label');
-      tzLbl.className = 'label';
-      tzLbl.innerHTML = `<span>Timezone ${i + 1}</span>`;
-      const select = document.createElement('select');
-      if (i === 0) {
-        const localOpt = document.createElement('option');
-        localOpt.value = '';
-        localOpt.textContent = 'Local';
-        select.appendChild(localOpt);
+      // Match stored IANA to an option value (groups like Mumbai/New Delhi share one option)
+      let resolved = '';
+      if (cfg.iana) {
+        for (const { value, ianas } of tzOptions) {
+          if (ianas.has(cfg.iana)) { resolved = value; break; }
+        }
       }
-      for (const { label, value, ianas } of tzOptions) {
-        const opt = document.createElement('option');
-        opt.value = value;
-        opt.textContent = label;
-        select.appendChild(opt);
-        if (cfg.iana && ianas.has(cfg.iana)) select.value = value;
-      }
-      if (!cfg.iana && i === 0) select.value = '';
-      select.addEventListener('input', () => {
-        const updated = this.#configs;
-        updated[i] = { ...updated[i], iana: select.value };
-        this.#save(updated);
-      });
-      tzLbl.appendChild(select);
-      fields.appendChild(tzLbl);
+      select.value = resolved;
+      start.value = cfg.workStart;
+      end.value = cfg.workEnd;
 
-      // Work hours
-      const whLbl = document.createElement('label');
-      whLbl.className = 'label';
-      whLbl.innerHTML = '<span>Work hours</span>';
-      const whRow = document.createElement('div');
-      whRow.className = 'work-hours';
+      // Remove button visible only when there's more than one timezone
+      remove.hidden = n <= 1;
+    }
 
-      const mkInput = (val, min, max, key) => {
-        const inp = document.createElement('input');
-        inp.type = 'number';
-        inp.min = min;
-        inp.max = max;
-        inp.value = val;
-        inp.addEventListener('input', () => {
-          const updated = this.#configs;
-          updated[i] = { ...updated[i], [key]: parseInt(inp.value) || val };
-          this.#save(updated);
-        });
-        return inp;
-      };
-
-      const dash = document.createElement('span');
-      dash.textContent = '–';
-      whRow.appendChild(mkInput(cfg.workStart, '0', '23', 'workStart'));
-      whRow.appendChild(dash);
-      whRow.appendChild(mkInput(cfg.workEnd, '1', '24', 'workEnd'));
-      whLbl.appendChild(whRow);
-      fields.appendChild(whLbl);
-
-      row.appendChild(fields);
-
-      // Remove button (hidden when only one timezone remains)
-      if (configs.length > 1) {
-        const rm = document.createElement('button');
-        rm.type = 'button';
-        rm.className = 'remove-tz';
-        rm.textContent = '×';
-        rm.title = 'Remove timezone';
-        rm.addEventListener('click', () => {
-          this.#save(this.#configs.filter((_, j) => j !== i));
-        });
-        row.appendChild(rm);
-      }
-
-      slotsDiv.appendChild(row);
-    });
-
-    addBtn.disabled = configs.length >= MAX_TZ;
+    this.#addTzBtn.disabled = n >= MAX_TZ;
   }
 }
 
