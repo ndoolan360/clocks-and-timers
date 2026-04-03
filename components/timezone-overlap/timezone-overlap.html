@@ -13,6 +13,13 @@
     <button class="popover-close" type="button" popovertarget="settings-popover" popovertargetaction="hide"
       title="Close" aria-label="Close">✕</button>
 
+    <label class="label" id="ref-tz-label">
+      <span>Reference timezone</span>
+      <select id="ref-tz-select">
+        <option value="UTC">UTC</option>
+      </select>
+    </label>
+
     <div class="tz-slot" id="tz-slot-0">
       <span class="tz-swatch" id="tz-swatch-0"></span>
       <div class="tz-fields">
@@ -108,26 +115,26 @@
     <circle cx="50" cy="50" r="42" class="face-ring" />
     <circle cx="50" cy="50" r="42" class="tick-ring tick-minor" />
     <circle cx="50" cy="50" r="42" class="tick-ring tick-major" />
-    <text x="50" y="4" class="hour-label" text-anchor="middle" dominant-baseline="middle">24</text>
-    <text x="96" y="50" class="hour-label" text-anchor="middle" dominant-baseline="middle">6</text>
-    <text x="50" y="96" class="hour-label" text-anchor="middle" dominant-baseline="middle">12</text>
-    <text x="4" y="50" class="hour-label" text-anchor="middle" dominant-baseline="middle">18</text>
+    <text x="50" y="3" class="hour-label" text-anchor="middle" dominant-baseline="middle">24</text>
+    <text x="97" y="50" class="hour-label" text-anchor="middle" dominant-baseline="middle">6</text>
+    <text x="50" y="97" class="hour-label" text-anchor="middle" dominant-baseline="middle">12</text>
+    <text x="3" y="50" class="hour-label" text-anchor="middle" dominant-baseline="middle">18</text>
 
     <g id="ring-0">
       <circle id="ring-bg-0" cx="50" cy="50" r="36" class="ring-bg" fill="none" stroke-opacity="0.15" />
-      <path id="ring-arc-0" class="ring-arc" fill="none" stroke-linecap="round" />
+      <path id="ring-arc-0" class="ring-arc" fill="none" />
     </g>
     <g id="ring-1" hidden>
       <circle id="ring-bg-1" cx="50" cy="50" r="27" class="ring-bg" fill="none" stroke-opacity="0.15" />
-      <path id="ring-arc-1" class="ring-arc" fill="none" stroke-linecap="round" />
+      <path id="ring-arc-1" class="ring-arc" fill="none" />
     </g>
     <g id="ring-2" hidden>
       <circle id="ring-bg-2" cx="50" cy="50" r="18" class="ring-bg" fill="none" stroke-opacity="0.15" />
-      <path id="ring-arc-2" class="ring-arc" fill="none" stroke-linecap="round" />
+      <path id="ring-arc-2" class="ring-arc" fill="none" />
     </g>
     <g id="ring-3" hidden>
       <circle id="ring-bg-3" cx="50" cy="50" r="9" class="ring-bg" fill="none" stroke-opacity="0.15" />
-      <path id="ring-arc-3" class="ring-arc" fill="none" stroke-linecap="round" />
+      <path id="ring-arc-3" class="ring-arc" fill="none" />
     </g>
 
     <line id="now-hand" x1="50" y1="50" class="now-hand" />

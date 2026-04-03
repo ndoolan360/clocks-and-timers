@@ -61,7 +61,7 @@
 .tick-minor {
   --gap: 10.496;
   --last: 10.996;
-  stroke-width: 2px;
+  stroke-width: 3px;
   stroke-dashoffset: -0.25;
   stroke-dasharray: 0 var(--gap) 0.5 var(--gap) 0.5 var(--gap) 0.5 var(--gap) 0.5 var(--gap) 0.5 var(--last);
   opacity: 0.4;
@@ -69,7 +69,7 @@
 
 .tick-major {
   --gap: 65.173;
-  stroke-width: 3px;
+  stroke-width: 4px;
   stroke-dashoffset: 0.4;
   stroke-dasharray: 0.8 var(--gap);
   opacity: 0.7;
@@ -130,9 +130,10 @@
 
 /* ── Settings slots ── */
 
-#tz-slots+.label {
-  padding-top: 0.5rem;
-  border-top: 1px solid color-mix(in srgb, var(--foreground, #DDD) 15%, transparent);
+#ref-tz-label {
+  clear: right;
+  padding-bottom: 0.5rem;
+  border-bottom: 1px solid color-mix(in srgb, var(--foreground, #DDD) 15%, transparent);
 }
 
 .tz-slot {
@@ -141,18 +142,6 @@
   gap: 0.5rem;
   padding: 0.5rem 0;
   border-top: 1px solid color-mix(in srgb, var(--foreground, #DDD) 15%, transparent);
-}
-
-.tz-slot:first-of-type {
-  margin-top: 1.5rem;
-}
-
-#tz-slots {
-  clear: right;
-}
-
-.tz-slot:first-child {
-  border-top: none;
 }
 
 .tz-swatch {

@@ -1,4 +1,5 @@
 import { loadWidgetAsShadow, registerButton, toggleHidden } from '../shared/widget.js';
+import { svgArcD } from '../shared/svg.js';
 import { State, isFineGrained, formatTime, setPulseSyncDelay, clearPulseSyncDelay, TickEngine } from '../shared/timer.js';
 
 const Phase = Object.freeze({ WORK: 'work', SHORT_BREAK: 'short-break', LONG_BREAK: 'long-break' });
@@ -136,14 +137,9 @@ class PomodoroTimer extends HTMLElement {
   }
 
   #addPair(phase, fromAngle, toAngle) {
-    const r = this.#R;
-    const cx = 50, cy = 50;
-    // Negate and offset by -π/2 so angle 0 = 12 o'clock
-    const [s, e] = [fromAngle, toAngle].map(a => -a - Math.PI / 2);
-    const [x1, x2] = [s, e].map(a => (cx + r * Math.cos(a)).toFixed(4));
-    const [y1, y2] = [s, e].map(a => (cy + r * Math.sin(a)).toFixed(4));
-    const large = (toAngle - fromAngle) > Math.PI ? 1 : 0;
-    const arc = `M${x2} ${y2}A${r} ${r} 0 ${large} 1 ${x1} ${y1}`;
+    // Negate and offset by -π/2 so angle 0 = 12 o'clock; draw end→start
+    // so the arc appears to fill clockwise as the timer progresses.
+    const arc = svgArcD(50, 50, this.#R, -toAngle - Math.PI / 2, -fromAngle - Math.PI / 2);
 
     const len = this.#R * (toAngle - fromAngle);
     for (const grp of [this.#bgGroup, this.#fgGroup]) {

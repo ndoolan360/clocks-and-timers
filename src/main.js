@@ -29,7 +29,7 @@ export const WIDGETS = [
     attributes: ['work', 'short-break', 'long-break', 'rounds', 'start-time', 'elapsed', 'state'],
   },
   { tag: 'stopwatch-clock', attributes: ['start-time', 'elapsed', 'state'] },
-  { tag: 'timezone-overlap', attributes: ['timezones'] },
+  { tag: 'timezone-overlap', attributes: ['timezones', 'reference'] },
 ]
 
 // The <ul> container for the list of widgets.
