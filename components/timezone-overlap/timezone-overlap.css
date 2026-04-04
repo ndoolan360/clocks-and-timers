@@ -1,7 +1,54 @@
+/* ── Timezone ring colors (override via CSS custom properties) ── */
+
+:host {
+  --tz-colour-0: #5580ff;
+  --tz-colour-1: #ff6b5b;
+  --tz-colour-2: #3dbe7a;
+  --tz-colour-3: #e0a84b;
+}
+
+#ring-bg-0,
+#ring-arc-0 {
+  stroke: var(--tz-colour-0);
+}
+
+#ring-bg-1,
+#ring-arc-1 {
+  stroke: var(--tz-colour-1);
+}
+
+#ring-bg-2,
+#ring-arc-2 {
+  stroke: var(--tz-colour-2);
+}
+
+#ring-bg-3,
+#ring-arc-3 {
+  stroke: var(--tz-colour-3);
+}
+
+#legend-swatch-0,
+#tz-swatch-0 {
+  background: var(--tz-colour-0);
+}
+
+#legend-swatch-1,
+#tz-swatch-1 {
+  background: var(--tz-colour-1);
+}
+
+#legend-swatch-2,
+#tz-swatch-2 {
+  background: var(--tz-colour-2);
+}
+
+#legend-swatch-3,
+#tz-swatch-3 {
+  background: var(--tz-colour-3);
+}
+
 /* ── SVG layout ── */
 
-/* In-flow so it can flex-grow alongside the HTML legend below it.
-   aspect-ratio: 1/1 keeps it square; margin gives the inset appearance. */
 #overlap-svg {
   display: block;
   flex: 1 1 0;

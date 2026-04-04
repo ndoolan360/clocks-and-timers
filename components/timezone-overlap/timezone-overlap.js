@@ -6,7 +6,6 @@ import { svgArcD } from '../shared/svg.js';
 const CX = 50, CY = 50;   // Clock centre (matches HTML)
 const FACE_R = 42;         // Outer ring radius (matches HTML)
 const MAX_TZ = 4;
-const COLORS = ['#5580ff', '#ff6b5b', '#3dbe7a', '#e0a84b'];
 
 // ── Defaults ──────────────────────────────────────────────────────────────────
 function defaultConfigs() {
@@ -103,12 +102,6 @@ class TimezoneOverlap extends HTMLElement {
           remove: this.shadowRoot.getElementById(`tz-remove-${i}`),
         });
 
-        // Apply static colours
-        const color = COLORS[i];
-        this.#rings[i].bg.setAttribute('stroke', color);
-        this.#rings[i].arc.setAttribute('stroke', color);
-        this.#legends[i].swatch.style.background = color;
-        this.#slots[i].swatch.style.background = color;
       }
 
       this.#nowHand   = this.shadowRoot.getElementById('now-hand');
