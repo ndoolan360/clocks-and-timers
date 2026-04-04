@@ -53,10 +53,13 @@ class TimezoneOverlap extends HTMLElement {
   #rings = [];
   #legends = [];
   #slots = [];
-  #nowHand = null;
-  #addTzBtn = null;
-  #svg = null;
-  #refSelect = null;
+  #nowHand       = null;
+  #addTzBtn      = null;
+  #svg           = null;
+  #refSelect     = null;
+  #refChipLocal  = null;
+  #refChipUtc    = null;
+  #refChipCustom = null;
 
   static observedAttributes = ['timezones', 'reference'];
 
@@ -104,10 +107,13 @@ class TimezoneOverlap extends HTMLElement {
 
       }
 
-      this.#nowHand   = this.shadowRoot.getElementById('now-hand');
-      this.#addTzBtn  = this.shadowRoot.getElementById('add-tz-btn');
-      this.#svg       = this.shadowRoot.getElementById('overlap-svg');
-      this.#refSelect = this.shadowRoot.getElementById('ref-tz-select');
+      this.#nowHand       = this.shadowRoot.getElementById('now-hand');
+      this.#addTzBtn      = this.shadowRoot.getElementById('add-tz-btn');
+      this.#svg           = this.shadowRoot.getElementById('overlap-svg');
+      this.#refSelect     = this.shadowRoot.getElementById('ref-tz-select');
+      this.#refChipLocal  = this.shadowRoot.getElementById('ref-chip-local');
+      this.#refChipUtc    = this.shadowRoot.getElementById('ref-chip-utc');
+      this.#refChipCustom = this.shadowRoot.getElementById('ref-chip-custom');
 
       this.#initSettings();
     }
@@ -169,7 +175,7 @@ class TimezoneOverlap extends HTMLElement {
     }
 
     // Now hand
-    const { h: nowH, m: nowM } = getTimeParts(now, ref);
+    const { h: nowH, m: nowM } = getTimeParts(now, ref || undefined);
     const [hx, hy] = polarXY(FACE_R - 2, nowH + nowM / 60);
     this.#nowHand.setAttribute('x2', hx.toFixed(2));
     this.#nowHand.setAttribute('y2', hy.toFixed(2));
@@ -179,13 +185,23 @@ class TimezoneOverlap extends HTMLElement {
   #initSettings() {
     const tzOptions = buildTimezoneSelectOptions();
 
-    // Populate reference timezone select (HTML already has UTC first)
+    // Populate reference IANA select (Local/UTC are handled by chips)
     for (const { label, value } of tzOptions) {
       const opt = document.createElement('option');
       opt.value = value;
       opt.textContent = label;
       this.#refSelect.appendChild(opt);
     }
+
+    this.#refChipLocal.addEventListener('click', () => {
+      this.setAttribute('reference', '');
+    });
+    this.#refChipUtc.addEventListener('click', () => {
+      this.setAttribute('reference', 'UTC');
+    });
+    this.#refChipCustom.addEventListener('click', () => {
+      this.setAttribute('reference', this.#refSelect.value);
+    });
     this.#refSelect.addEventListener('input', () => {
       this.setAttribute('reference', this.#refSelect.value);
     });
@@ -241,15 +257,24 @@ class TimezoneOverlap extends HTMLElement {
     const n = configs.length;
     const tzOptions = buildTimezoneSelectOptions();
 
-    // Sync reference select
+    // Sync reference chips and select
     const ref = this.#reference;
-    let refResolved = 'UTC';
-    if (ref !== 'UTC') {
+    const isLocal  = ref === '';
+    const isUtc    = ref === 'UTC';
+    const isCustom = !isLocal && !isUtc;
+
+    this.#refChipLocal .setAttribute('aria-pressed', String(isLocal));
+    this.#refChipUtc   .setAttribute('aria-pressed', String(isUtc));
+    this.#refChipCustom.setAttribute('aria-pressed', String(isCustom));
+    toggleHidden(this.#refSelect, !isCustom);
+
+    if (isCustom) {
+      let resolved = ref;
       for (const { value, ianas } of tzOptions) {
-        if (ianas.has(ref)) { refResolved = value; break; }
+        if (ianas.has(ref)) { resolved = value; break; }
       }
+      this.#refSelect.value = resolved;
     }
-    this.#refSelect.value = refResolved;
 
     for (let i = 0; i < MAX_TZ; i++) {
       const { slot, select, start, end, remove } = this.#slots[i];

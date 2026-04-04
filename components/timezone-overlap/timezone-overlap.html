@@ -13,12 +13,15 @@
     <button class="popover-close" type="button" popovertarget="settings-popover" popovertargetaction="hide"
       title="Close" aria-label="Close">✕</button>
 
-    <label class="label" id="ref-tz-label">
+    <div class="label" id="ref-tz-label">
       <span>Reference timezone</span>
-      <select id="ref-tz-select">
-        <option value="UTC">UTC</option>
-      </select>
-    </label>
+      <div class="preset-chips" role="group" aria-label="Reference timezone">
+        <button type="button" id="ref-chip-local">Local</button>
+        <button type="button" id="ref-chip-utc">UTC</button>
+        <button type="button" id="ref-chip-custom">Custom</button>
+      </div>
+      <select id="ref-tz-select" hidden></select>
+    </div>
 
     <div class="tz-slot" id="tz-slot-0">
       <span class="tz-swatch" id="tz-swatch-0"></span>
