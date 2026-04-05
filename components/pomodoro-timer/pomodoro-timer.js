@@ -259,10 +259,10 @@ class PomodoroTimer extends HTMLElement {
 
   #updateBtn() {
     const [icon, label] = {
-      default: ['▶︎', 'Start'],
       [State.RUNNING]: ['⏸︎', 'Pause timer'],
       [State.PAUSED]: ['▶︎', `Start ${this.#labelFor(this.#phase)}`],
       [State.FINISHED]: ['⏭︎', `Move to ${this.#nextPhaseLabel()}`],
+      default: ['▶︎', 'Start'],
     }[this.#state ?? 'default'];
     this.#pauseBtn.textContent = icon;
     this.#pauseBtn.title = label;

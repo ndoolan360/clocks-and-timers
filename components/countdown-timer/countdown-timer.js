@@ -110,12 +110,12 @@ class CountdownTimer extends HTMLElement {
   }
 
   #updateBtn() {
-    const labels = {
+    const [icon, label] = {
       [State.RUNNING]: ['⏸︎', 'Pause timer'],
       [State.PAUSED]: ['▶︎', 'Start timer'],
       [State.FINISHED]: ['↻', 'Restart timer'],
-    };
-    const [icon, label] = labels[this.#state] || labels[State.PAUSED];
+      default: ['▶︎', 'Start timer'],
+    }[this.#state ?? 'default'];
     this.#pauseBtn.textContent = icon;
     this.#pauseBtn.title = label;
     this.#pauseBtn.setAttribute('aria-label', label);
