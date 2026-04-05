@@ -92,11 +92,10 @@ export class TickEngine {
 
   /**
    * Start (or restart) the interval.
-   * @param {boolean} fineGrained - `true` for 100 ms ticks, `false` for 1 s.
    */
-  start(fineGrained) {
+  start() {
     this.stop();
-    this.#id = setInterval(this.#onTick, fineGrained ? 100 : 1000);
+    this.#id = setInterval(this.#onTick, 100);
   }
 
   /** Stop the interval if one is running. */

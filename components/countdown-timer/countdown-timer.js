@@ -77,7 +77,7 @@ class CountdownTimer extends HTMLElement {
 
   start() {
     if (this.#tick.running) return;
-    this.#tick.start(isFineGrained(this.#remaining));
+    this.#tick.start();
     this.#state = State.RUNNING;
     this.dispatchEvent(new CustomEvent('timer-started', { bubbles: true }));
     this.#startEpoch = Date.now() - (this.#duration - this.#remaining);
