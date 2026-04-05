@@ -13,8 +13,8 @@
 
 :has(>*>#clocks-and-timers) {
   display: flex;
-  max-height: 100vh;
-  height: 100%;
+  max-height: 100dvh;
+  height: 100dvh;
 }
 
 :has(>#clocks-and-timers) {
@@ -27,6 +27,7 @@
 
   display: flex;
   flex-flow: column nowrap;
+  container-type: size;
 }
 
 /* ---- Clocks and timers list --- */
@@ -56,8 +57,8 @@
      Vertical overhead: 1rem padding × 2 + 2.5rem controls + (rows−1) gaps */
   --col-gaps: calc((var(--cols) - 1) * 0.875rem);
   --row-gaps: calc((var(--rows) - 1) * 0.875rem);
-  --item-size: min(calc((100svw - 4rem - var(--col-gaps)) / var(--cols)),
-      calc((100svh - 4.5rem - var(--row-gaps)) / var(--rows)));
+  --item-size: min(calc((100cqw - 4rem - var(--col-gaps)) / var(--cols)),
+      calc((100cqh - 4.5rem - var(--row-gaps)) / var(--rows)));
 
   grid-template-columns: repeat(var(--cols), var(--item-size));
   grid-auto-rows: var(--item-size);
@@ -104,6 +105,7 @@
   width: 100%;
   aspect-ratio: 1 / 1;
   min-width: 0;
+  margin: 0;
 
   border: 1px solid var(--accent, royalblue);
   border-radius: 1rem;
