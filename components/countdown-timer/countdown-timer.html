@@ -5,6 +5,7 @@
       <button id="settings-btn" type="button" title="Timer settings" aria-label="Timer settings"
         popovertarget="settings-popover">⚙️</button>
       <button id="pause-btn" type="button" title="Start timer" aria-label="Start timer" disabled>▶︎</button>
+      <button id="reset-btn" type="button" title="Reset timer" aria-label="Reset timer" disabled>↻</button>
       <button id="remove-btn" type="button" title="Remove timer" aria-label="Remove timer" disabled>🗑️</button>
     </fieldset>
   </form>
@@ -35,7 +36,7 @@
         </div>
       </div>
       <div class="custom-fields" hidden>
-        <label class="label" hidden>
+        <label class="label">
           <span>Custom Duration (seconds)</span>
           <input id="setting-duration" type="number" name="duration" min="1" max="86400" step="1" />
         </label>

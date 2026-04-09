@@ -7,6 +7,7 @@ class CountdownTimer extends HTMLElement {
   #ring;          // #progress-ring element
   #timeEl;        // #timer-text element
   #pauseBtn;
+  #resetBtn;
   #startEpoch = null;
   #tick = new TickEngine(() => this.#onTick());
 
@@ -28,6 +29,7 @@ class CountdownTimer extends HTMLElement {
       this.#ring = this.shadowRoot.getElementById('progress-ring');
       this.#timeEl = this.shadowRoot.getElementById('timer-text');
       this.#pauseBtn = registerButton(this.shadowRoot, 'pause-btn', () => this.#toggle());
+      this.#resetBtn = registerButton(this.shadowRoot, 'reset-btn', () => this.reset());
 
       this.#initSettings();
     }
@@ -113,12 +115,17 @@ class CountdownTimer extends HTMLElement {
     const [icon, label] = {
       [State.RUNNING]: ['⏸︎', 'Pause timer'],
       [State.PAUSED]: ['▶︎', 'Start timer'],
-      [State.FINISHED]: ['↻', 'Restart timer'],
+      [State.FINISHED]: ['⏹︎', 'Stop timer'],
       default: ['▶︎', 'Start timer'],
     }[this.#state ?? 'default'];
     this.#pauseBtn.textContent = icon;
     this.#pauseBtn.title = label;
     this.#pauseBtn.setAttribute('aria-label', label);
+    this.#resetBtn.disabled = !(
+      this.#state === State.RUNNING ||
+      this.#state === State.FINISHED ||
+      (this.#state === State.PAUSED && this.#remaining < this.#duration)
+    );
   }
 
   #onTick() {
