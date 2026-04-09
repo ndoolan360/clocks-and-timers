@@ -98,6 +98,83 @@
   --rows: 3;
 }
 
+/* ---- Minimum item size: reduce cols when container is too narrow for 16rem items --- */
+
+@container (max-width: 36.874rem) {
+
+  #clocks-and-timers {
+    overflow-y: auto;
+    width: 100%;
+    --item-size: clamp(0rem, calc((100cqw - 2rem)), 24rem);
+    --cols: 1 !important;
+  }
+
+  #clocks-and-timers:has(> li:nth-child(2):last-child) {
+    --rows: 2;
+  }
+
+  #clocks-and-timers:has(> li:nth-child(3):last-child) {
+    --rows: 3;
+  }
+
+  #clocks-and-timers:has(> li:nth-child(4):last-child) {
+    --rows: 4;
+  }
+
+  #clocks-and-timers:has(> li:nth-child(5):last-child) {
+    --rows: 5;
+  }
+
+  #clocks-and-timers:has(> li:nth-child(6):last-child) {
+    --rows: 6;
+  }
+
+  #clocks-and-timers:has(> li:nth-child(7):last-child) {
+    --rows: 7;
+  }
+
+  #clocks-and-timers:has(> li:nth-child(8):last-child) {
+    --rows: 8;
+  }
+
+  #clocks-and-timers:has(> li:nth-child(9):last-child) {
+    --rows: 9;
+  }
+}
+
+@container (min-width: 36.875rem) and (max-width: 53.749rem) {
+
+  #clocks-and-timers {
+    overflow-y: auto;
+    width: 100%;
+    --cols: 2 !important;
+    --item-size: clamp(16rem, calc((100cqw - 2rem - var(--col-gaps)) / var(--cols)), 20rem);
+  }
+
+  #clocks-and-timers:has(> li:nth-child(5):last-child),
+  #clocks-and-timers:has(> li:nth-child(6):last-child) {
+    --rows: 3;
+  }
+
+  #clocks-and-timers:has(> li:nth-child(7):last-child),
+  #clocks-and-timers:has(> li:nth-child(8):last-child) {
+    --rows: 4;
+  }
+
+  #clocks-and-timers:has(> li:nth-child(9):last-child) {
+    --rows: 5;
+  }
+}
+
+@container (min-width: 53.75rem) and (max-width: 70.624rem) {
+  #clocks-and-timers {
+    overflow-y: auto;
+    width: 100%;
+    --item-size: 16rem;
+    --cols: 3;
+  }
+}
+
 /* ---- Individual clock and timer items --- */
 
 #clocks-and-timers li {
@@ -128,7 +205,7 @@
 
 #controls>fieldset {
   display: flex;
-  flex-flow: row-reverse wrap;
+  flex-flow: row wrap;
   overflow: hidden;
   align-items: center;
   justify-content: center;
@@ -195,8 +272,7 @@
 
   opacity: 0;
   pointer-events: none;
-  transition:
-    opacity var(--transition-duration, 0.2s) ease,
+  transition: opacity var(--transition-duration, 0.2s) ease,
     pointer-events 0.6s allow-discrete;
 }
 
